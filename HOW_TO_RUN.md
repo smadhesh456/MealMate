@@ -51,7 +51,7 @@ npm run dev
 
 ## 🗄️ 2. MYSQL DATABASE SETUP & CONFIGURATION
 
-MealMate uses **MySQL 8.0** as its primary relational database.
+MealMate uses **MySQL 8.0** with the dedicated database **`mealmate_db`**.
 
 ### Database Credentials (`.env`)
 Create a `.env` file in the root workspace (already prepared based on `.env.example`):
@@ -60,40 +60,45 @@ DB_HOST=localhost
 DB_PORT=3306
 DB_USER=root
 DB_PASSWORD=
-DB_NAME=mealmate
+DB_NAME=mealmate_db
 PORT=5000
-JWT_SECRET=mealmate_jwt_secret_key_change_in_production_campus_2026
+JWT_SECRET=mealmate_super_secret_jwt_token_2026
 VITE_API_URL=http://localhost:5000/api
 ```
 
 ### Automatic Table Creation & Seeding
-When you run `bun run dev`, the backend automatically:
+When you run `bun run dev` (or `bun server/index.ts`), the backend automatically:
 1. Connects to MySQL on your machine.
-2. Creates the `mealmate` database if it does not exist.
-3. Automatically creates all **18 tables** with InnoDB engines and foreign keys from `server/schema.sql`.
+2. Creates the `mealmate_db` database if it does not exist (`CREATE DATABASE IF NOT EXISTS mealmate_db`).
+3. Automatically creates all **21 normalized tables** with InnoDB engines, foreign keys, and indexes from `database/schema.sql` and `server/schema.sql`.
 4. Seeds initial categories, sellers, realistic food items with accurate images, and test credentials.
 
-> **Offline/Bootstrap Graceful Mode:** If MySQL is not running on your machine at the moment of launch, the backend gracefully activates an in-memory MySQL shadow store with identical schemas and seeded records, ensuring zero downtime while allowing testing right away!
+> **Offline/Bootstrap Graceful Mode:** If MySQL is temporarily offline or password is not configured yet, the backend gracefully activates an in-memory shadow store with identical schemas and seeded records, ensuring zero downtime while allowing testing right away!
 
-### The 18 Normalized MySQL Tables:
+### The 21 Normalized MySQL Tables (`mealmate_db`):
 1. `users` – ID, full name, email, bcrypt password hash, phone, role (`customer`, `seller`, `admin`), account status.
-2. `sellers` – Kitchen name, description, address, approval status, active status.
-3. `food_categories` – Breakfast, Lunch, Dinner, Combos, Quick Bites.
-4. `food_items` – Food ID, seller ID, category, name, description, veg/non-veg type, module, price, original price, image URL, stock.
-5. `delivery_addresses` – Student campus hostel addresses and drop-off points.
-6. `orders` – Order number, customer, seller, subtotal, discounts, fees, final total, COD payment status, order status.
-7. `order_items` – Frozen snapshots of dish name, image, price, quantity, line total.
-8. `order_otps` – Unique 6-digit random delivery OTP with bcrypt hash, expiry, verification timestamp, failed attempts.
-9. `order_status_history` – Timestamped log of status transitions.
-10. `loyalty_points` – Customer reward point balances.
-11. `loyalty_transactions` – 20 points per unique order day, 100-point redemptions.
-12. `food_savings` – Rescued meals, money saved, and kg waste diverted (only delivered orders count).
-13. `coupons` – Promo codes and maximum discount caps.
-14. `subscriptions` – HomePlate weekly/monthly meal passes.
-15. `surplus_food` – SaveMyMeal surplus portions, discounts, and cutoff times.
-16. `inventory_transactions` – Stock deductions and restoration logs.
-17. `notifications` – System alerts and order notifications.
-18. `disputes` – Student complaints and resolution audit trail.
+2. `user_addresses` – Student campus hostel addresses and drop-off points + default flag.
+3. `sellers` – Kitchen name, description, address, approval status, active status.
+4. `food_categories` – Breakfast, Lunch, Dinner, Combos, Quick Bites.
+5. `food_items` – Food ID, seller ID, category, name, description, veg/non-veg type, module, price, original price, image URL, stock.
+6. `food_inventory` – Real-time stock levels, reorder thresholds, and restock audit timestamps.
+7. `carts` – Customer shopping cart header with applied coupon and loyalty preferences.
+8. `cart_items` – Line items with quantities in the active shopping cart.
+9. `orders` – Master order header (COD, unique 6-digit OTP, itemized fees, status).
+10. `order_items` – Frozen snapshots of dish name, image, price, quantity, line total.
+11. `payments` – Cash on Delivery payment transactions (Pending $\to$ Paid upon OTP verification).
+12. `subscriptions` – HomePlate 7-day weekly and 30-day monthly meal passes.
+13. `subscription_orders` – Pre-scheduled daily meal deliveries generated for active subscriptions.
+14. `loyalty_points` – Customer reward point balances and total redeemed points.
+15. `loyalty_transactions` – 20 points per unique order day, 100-point redemptions.
+16. `coupons` – Campus promotional discount vouchers (`WELCOME50`, `CAMPUS20`, `BITE15`, `SAVER10`).
+17. `surplus_food` – SaveMyMeal surplus portions, discounts, and cutoff countdowns.
+18. `surplus_orders` – Rescued meal fulfillment & waste audit.
+19. `delivery_tracking` – Live delivery buddy assignment, ETA minutes, and OTP confirmation.
+20. `reviews` – Customer ratings (1-5 stars) and verified feedback on food items.
+21. `notifications` – System alerts and order notifications.
+
+*Supporting operational tables*: `food_savings` (wallet & carbon metrics), `disputes` (complaints), `order_otps` (hashed OTPs), `order_status_history` (audit logs), `inventory_transactions`.
 
 ---
 
