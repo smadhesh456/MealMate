@@ -228,5 +228,253 @@ export const api = {
     });
     return res.json();
   },
+
+  // Cart Management
+  async getCart() {
+    const res = await fetch(`${API_BASE_URL}/cart`, {
+      headers: getAuthHeaders(),
+    });
+    return res.json();
+  },
+
+  async addCartItem(foodId: string, quantity = 1) {
+    const res = await fetch(`${API_BASE_URL}/cart/items`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ foodId, quantity }),
+    });
+    return res.json();
+  },
+
+  async updateCartItemQuantity(foodId: string, quantity: number) {
+    const res = await fetch(`${API_BASE_URL}/cart/items/${foodId}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ quantity }),
+    });
+    return res.json();
+  },
+
+  async removeCartItem(foodId: string) {
+    const res = await fetch(`${API_BASE_URL}/cart/items/${foodId}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    return res.json();
+  },
+
+  async clearCart() {
+    const res = await fetch(`${API_BASE_URL}/cart`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    return res.json();
+  },
+
+  async applyCartCoupon(couponCode: string) {
+    const res = await fetch(`${API_BASE_URL}/cart/coupon`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ couponCode }),
+    });
+    return res.json();
+  },
+
+  async setCartLoyalty(useRewardPoints: boolean) {
+    const res = await fetch(`${API_BASE_URL}/cart/loyalty`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ useRewardPoints }),
+    });
+    return res.json();
+  },
+
+  // User Addresses
+  async getAddresses() {
+    const res = await fetch(`${API_BASE_URL}/addresses`, {
+      headers: getAuthHeaders(),
+    });
+    return res.json();
+  },
+
+  async addAddress(addressData: { title: string; address: string; city?: string; pincode?: string; phone?: string; isDefault?: boolean }) {
+    const res = await fetch(`${API_BASE_URL}/addresses`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(addressData),
+    });
+    return res.json();
+  },
+
+  async updateAddress(id: string, addressData: any) {
+    const res = await fetch(`${API_BASE_URL}/addresses/${id}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(addressData),
+    });
+    return res.json();
+  },
+
+  async deleteAddress(id: string) {
+    const res = await fetch(`${API_BASE_URL}/addresses/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    return res.json();
+  },
+
+  async setDefaultAddress(id: string) {
+    const res = await fetch(`${API_BASE_URL}/addresses/${id}/default`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+    });
+    return res.json();
+  },
+
+  // Subscriptions (HomePlate passes)
+  async getSubscriptions() {
+    const res = await fetch(`${API_BASE_URL}/subscriptions`, {
+      headers: getAuthHeaders(),
+    });
+    return res.json();
+  },
+
+  async createSubscription(subData: { planName: string; planType: string; mealType?: string; sellerId?: string; deliverySlot?: string; totalAmount: number }) {
+    const res = await fetch(`${API_BASE_URL}/subscriptions`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(subData),
+    });
+    return res.json();
+  },
+
+  async updateSubscriptionStatus(id: string, status: string) {
+    const res = await fetch(`${API_BASE_URL}/subscriptions/${id}/status`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ status }),
+    });
+    return res.json();
+  },
+
+  async getSubscriptionOrders(id: string) {
+    const res = await fetch(`${API_BASE_URL}/subscriptions/${id}/orders`, {
+      headers: getAuthHeaders(),
+    });
+    return res.json();
+  },
+
+  // Reviews
+  async getReviews(foodId?: string) {
+    const url = foodId ? `${API_BASE_URL}/reviews?foodId=${foodId}` : `${API_BASE_URL}/reviews`;
+    const res = await fetch(url);
+    return res.json();
+  },
+
+  async addReview(reviewData: { foodId: string; orderId?: string; rating: number; comment: string; userName?: string }) {
+    const res = await fetch(`${API_BASE_URL}/reviews`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(reviewData),
+    });
+    return res.json();
+  },
+
+  // Complaints / Disputes
+  async getComplaints() {
+    const res = await fetch(`${API_BASE_URL}/complaints`, {
+      headers: getAuthHeaders(),
+    });
+    return res.json();
+  },
+
+  async addComplaint(complaintData: { orderId?: string; reason: string; description: string }) {
+    const res = await fetch(`${API_BASE_URL}/complaints`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(complaintData),
+    });
+    return res.json();
+  },
+
+  async updateComplaintStatus(id: string, status: string, notes?: string) {
+    const res = await fetch(`${API_BASE_URL}/complaints/${id}/status`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ status, notes }),
+    });
+    return res.json();
+  },
+
+  // Inventory
+  async getInventory(sellerId?: string) {
+    const url = sellerId ? `${API_BASE_URL}/inventory?seller_id=${sellerId}` : `${API_BASE_URL}/inventory`;
+    const res = await fetch(url, {
+      headers: getAuthHeaders(),
+    });
+    return res.json();
+  },
+
+  async updateInventoryStock(foodId: string, stockQuantity: number, minimumThreshold?: number) {
+    const res = await fetch(`${API_BASE_URL}/inventory/${foodId}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ stockQuantity, minimumThreshold }),
+    });
+    return res.json();
+  },
+
+  async getInventoryLogs() {
+    const res = await fetch(`${API_BASE_URL}/inventory/logs`, {
+      headers: getAuthHeaders(),
+    });
+    return res.json();
+  },
+
+  // Coupons
+  async getCoupons() {
+    const res = await fetch(`${API_BASE_URL}/coupons`);
+    return res.json();
+  },
+
+  async validateCoupon(code: string, subtotal = 0) {
+    const res = await fetch(`${API_BASE_URL}/coupons/validate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, subtotal }),
+    });
+    return res.json();
+  },
+
+  // Notifications
+  async getNotifications() {
+    const res = await fetch(`${API_BASE_URL}/notifications`, {
+      headers: getAuthHeaders(),
+    });
+    return res.json();
+  },
+
+  async markNotificationRead(id: string) {
+    const res = await fetch(`${API_BASE_URL}/notifications/${id}/read`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+    });
+    return res.json();
+  },
+
+  // Order Tracking & Payment
+  async getOrderTracking(orderId: string) {
+    const res = await fetch(`${API_BASE_URL}/orders/${orderId}/tracking`, {
+      headers: getAuthHeaders(),
+    });
+    return res.json();
+  },
+
+  async getOrderPayment(orderId: string) {
+    const res = await fetch(`${API_BASE_URL}/orders/${orderId}/payment`, {
+      headers: getAuthHeaders(),
+    });
+    return res.json();
+  },
 };
 

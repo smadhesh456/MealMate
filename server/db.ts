@@ -4,12 +4,18 @@ import bcrypt from 'bcryptjs';
 
 dotenv.config();
 
+const dbHost = process.env.DB_HOST || 'localhost';
+const dbPort = Number(process.env.DB_PORT) || 3306;
+const dbUser = process.env.DB_USER || 'root';
+const dbPassword = process.env.DB_PASSWORD || '';
+const dbName = process.env.DB_NAME || 'mealmate_db';
+
 export const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  port: Number(process.env.DB_PORT) || 3306,
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'mealmate',
+  host: dbHost,
+  port: dbPort,
+  user: dbUser,
+  password: dbPassword,
+  database: dbName,
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
@@ -19,10 +25,25 @@ let isDbConnected = false;
 
 export const checkDbConnection = async (): Promise<boolean> => {
   try {
+    // Attempt to bootstrap database if it does not exist
+    try {
+      const bootstrap = await mysql.createConnection({
+        host: dbHost,
+        port: dbPort,
+        user: dbUser,
+        password: dbPassword,
+      });
+      await bootstrap.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+      await bootstrap.end();
+    } catch {
+      // Ignore if user cannot run root bootstrap or db exists
+    }
+
     const conn = await pool.getConnection();
     await conn.ping();
     conn.release();
     isDbConnected = true;
+    console.log(`[MySQL] Connected successfully to database: ${dbName}`);
     return true;
   } catch (err: any) {
     console.warn(`[MySQL] Note: Could not connect to MySQL server (${err.code || err.message}). Fallback data mode enabled.`);
@@ -104,7 +125,6 @@ export const SEED_DATA = {
     { id: 'cat-combos', category_name: 'Combos', description: 'Value-for-money meal combos and multi-course sets' },
     { id: 'cat-snacks', category_name: 'Quick Bites', description: 'Budget rolls, omelettes, and healthy campus snacks' }
   ],
-  // EVERY food item has an accurate, distinctive, high-res image and proper classification!
   foodItems: [
     // --- HomePlate Items ---
     {
@@ -149,229 +169,195 @@ export const SEED_DATA = {
       description: 'Fragrant South Indian rice tempered with mustard seeds, curry leaves, roasted crunchy peanuts, and fresh lemon juice.',
       food_type: 'veg',
       module: 'HomePlate',
-      price: 55,
-      original_price: 70,
+      price: 50,
+      original_price: 60,
       image_url: 'https://images.unsplash.com/photo-1645177628172-a94c1f96e6db?auto=format&fit=crop&w=800&q=80',
       available_quantity: 20,
       is_available: 1,
       prep_time_minutes: 15,
       rating: 4.8,
-      review_count: 36
+      review_count: 41
     },
     {
       id: 'hp-4',
       seller_id: 'seller-1',
       category_id: 'cat-lunch',
-      food_name: 'Homemade South Indian Veg Thali',
-      description: 'Wholesome full lunch with steamed sona masoori rice, sambar, rasam, kootu, poriyal, curd, and crispy appalam.',
+      food_name: 'Traditional South Indian Thali',
+      description: 'Full midday meal with steamed ponni rice, sambar, rasam, kootu, poriyal, curd, appalam, and homemade pickle.',
       food_type: 'veg',
       module: 'HomePlate',
       price: 90,
-      original_price: 110,
+      original_price: 120,
       image_url: 'https://images.unsplash.com/photo-1610057099443-fde8c4d50f91?auto=format&fit=crop&w=800&q=80',
-      available_quantity: 28,
+      available_quantity: 30,
       is_available: 1,
       prep_time_minutes: 25,
-      rating: 4.9,
-      review_count: 95
+      rating: 4.95,
+      review_count: 94
     },
     {
       id: 'hp-5',
       seller_id: 'seller-1',
       category_id: 'cat-dinner',
-      food_name: 'Soft Chapatis with Veg Kurma',
-      description: 'Three freshly rolled whole-wheat rotis served with aromatic coconut mixed vegetable kurma and onion salad.',
+      food_name: 'Phulka Chapati & Dal Tadka',
+      description: 'Three soft whole wheat phulkas served with yellow dal tempered in pure ghee with cumin, garlic, and fresh coriander.',
       food_type: 'veg',
       module: 'HomePlate',
       price: 65,
       original_price: 80,
-      image_url: 'https://images.unsplash.com/photo-1505253758473-96b3015f240a?auto=format&fit=crop&w=800&q=80',
+      image_url: 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?auto=format&fit=crop&w=800&q=80',
       available_quantity: 30,
       is_available: 1,
       prep_time_minutes: 20,
-      rating: 4.7,
-      review_count: 42
+      rating: 4.85,
+      review_count: 52
     },
     {
       id: 'hp-6',
-      seller_id: 'seller-1',
+      seller_id: 'seller-2',
       category_id: 'cat-lunch',
-      food_name: 'Tempered Creamy Curd Rice',
-      description: 'Cool comforting yogurt rice tempered with green chillies, ginger, mustard seeds, and topped with fresh pomegranate.',
+      food_name: 'Paneer Butter Masala Combo',
+      description: 'Rich cottage cheese cubes simmered in creamy tomato-cashew gravy, served with 2 butter naans or jeera rice.',
       food_type: 'veg',
       module: 'HomePlate',
-      price: 45,
-      original_price: 55,
-      image_url: 'https://images.unsplash.com/photo-1565557623262-b51c2513a641?auto=format&fit=crop&w=800&q=80',
-      available_quantity: 22,
+      price: 110,
+      original_price: 140,
+      image_url: 'https://images.unsplash.com/photo-1631452180519-c014fe946bc7?auto=format&fit=crop&w=800&q=80',
+      available_quantity: 18,
       is_available: 1,
-      prep_time_minutes: 10,
-      rating: 4.8,
-      review_count: 48
+      prep_time_minutes: 25,
+      rating: 4.9,
+      review_count: 67
+    },
+    {
+      id: 'hp-7',
+      seller_id: 'seller-2',
+      category_id: 'cat-dinner',
+      food_name: 'Ambur Chicken Dum Biryani',
+      description: 'Aromatic seeraga samba rice cooked with tender marinated chicken pieces, whole spices, mint, and boiled egg.',
+      food_type: 'non-veg',
+      module: 'HomePlate',
+      price: 130,
+      original_price: 160,
+      image_url: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&w=800&q=80',
+      available_quantity: 25,
+      is_available: 1,
+      prep_time_minutes: 25,
+      rating: 4.92,
+      review_count: 115
     },
 
-    // --- BudgetBite Items (Veg & Non-Veg for ₹50, ₹80, ₹100, ₹150 budget tiers) ---
+    // --- BudgetBite Items (strictly capped ₹50 - ₹150) ---
     {
       id: 'bb-1',
-      seller_id: 'seller-2',
-      category_id: 'cat-snacks',
-      food_name: 'Boiled Egg Duo with Pepper',
-      description: 'Two farm-fresh boiled eggs lightly sprinkled with Himalayan rock salt and freshly cracked black pepper.',
-      food_type: 'non-veg',
+      seller_id: 'seller-1',
+      category_id: 'cat-breakfast',
+      food_name: 'Ghee Podi Idli (4 pcs)',
+      description: 'Mini steamed idlis tossed in gun-powder spice blend and aromatic country ghee, served with coconut chutney.',
+      food_type: 'veg',
       module: 'BudgetBite',
-      price: 20,
-      original_price: 30,
-      image_url: 'https://images.unsplash.com/photo-1582722872445-44dc5f7e3c8f?auto=format&fit=crop&w=800&q=80',
-      available_quantity: 40,
+      price: 45,
+      original_price: 55,
+      image_url: 'https://images.unsplash.com/photo-1589301760014-d929f3979dbc?auto=format&fit=crop&w=800&q=80',
+      available_quantity: 25,
       is_available: 1,
-      prep_time_minutes: 5,
-      rating: 4.8,
-      review_count: 85
+      prep_time_minutes: 15,
+      rating: 4.85,
+      review_count: 38
     },
     {
       id: 'bb-2',
       seller_id: 'seller-2',
       category_id: 'cat-snacks',
-      food_name: 'Masala Egg Omelette Pav',
-      description: 'Fluffy double egg masala omelette cooked with onions and chillies, tucked inside a toasted butter pav.',
+      food_name: 'Double Egg Roll',
+      description: 'Flaky whole wheat paratha wrapped around two fluffy spiced eggs, sliced crunchy onions, and zesty green mint sauce.',
       food_type: 'non-veg',
       module: 'BudgetBite',
-      price: 35,
-      original_price: 50,
-      image_url: 'https://images.unsplash.com/photo-1525351484163-7529414344d8?auto=format&fit=crop&w=800&q=80',
-      available_quantity: 30,
+      price: 50,
+      original_price: 65,
+      image_url: 'https://images.unsplash.com/photo-1626777552726-4a6b54c97e46?auto=format&fit=crop&w=800&q=80',
+      available_quantity: 40,
       is_available: 1,
-      prep_time_minutes: 10,
+      prep_time_minutes: 15,
       rating: 4.9,
-      review_count: 98
+      review_count: 89
     },
     {
       id: 'bb-3',
-      seller_id: 'seller-2',
-      category_id: 'cat-snacks',
-      food_name: 'Spiced Chicken Kathi Roll',
-      description: 'Succulent marinated chicken chunks wrapped in a flaky paratha with mint mayonnaise and sliced red onions.',
-      food_type: 'non-veg',
+      seller_id: 'seller-1',
+      category_id: 'cat-lunch',
+      food_name: 'Curd Rice with Pomegranate',
+      description: 'Creamy seasoned curd rice tempered with mustard, green chillies, ginger, and garnished with sweet ruby pomegranate.',
+      food_type: 'veg',
       module: 'BudgetBite',
-      price: 65,
-      original_price: 90,
-      image_url: 'https://images.unsplash.com/photo-1626777552726-4a6b54c97e46?auto=format&fit=crop&w=800&q=80',
-      available_quantity: 25,
+      price: 45,
+      original_price: 55,
+      image_url: 'https://images.unsplash.com/photo-1645177628172-a94c1f96e6db?auto=format&fit=crop&w=800&q=80',
+      available_quantity: 20,
       is_available: 1,
-      prep_time_minutes: 15,
-      rating: 4.7,
-      review_count: 114
+      prep_time_minutes: 10,
+      rating: 4.8,
+      review_count: 29
     },
     {
       id: 'bb-4',
       seller_id: 'seller-2',
-      category_id: 'cat-lunch',
-      food_name: 'Dhaba Egg Curry with Steamed Rice',
-      description: 'Two golden pan-fried eggs in a thick dhaba-style tomato-onion gravy, accompanied by fragrant basmati rice.',
-      food_type: 'non-veg',
+      category_id: 'cat-snacks',
+      food_name: 'Paneer Kathi Roll',
+      description: 'Grilled spiced paneer cubes rolled inside a flaky paratha with bell peppers, tangy masala onions, and mint dip.',
+      food_type: 'veg',
       module: 'BudgetBite',
-      price: 70,
-      original_price: 95,
-      image_url: 'https://images.unsplash.com/photo-1589302168068-964664d93dc0?auto=format&fit=crop&w=800&q=80',
-      available_quantity: 20,
+      price: 65,
+      original_price: 80,
+      image_url: 'https://images.unsplash.com/photo-1565557623262-b51c2513a641?auto=format&fit=crop&w=800&q=80',
+      available_quantity: 30,
       is_available: 1,
       prep_time_minutes: 15,
-      rating: 4.8,
-      review_count: 76
+      rating: 4.88,
+      review_count: 64
     },
     {
       id: 'bb-5',
       seller_id: 'seller-2',
       category_id: 'cat-dinner',
-      food_name: 'Wok Egg Fried Rice',
-      description: 'Smoky wok-tossed basmati rice with scrambled eggs, scallions, crisp carrots, and dark soy glaze.',
+      food_name: 'Egg Fried Rice Bowl',
+      description: 'Wok-tossed basmati rice with scrambled farm eggs, spring onions, shredded carrots, and dark soy garlic seasoning.',
       food_type: 'non-veg',
       module: 'BudgetBite',
-      price: 85,
-      original_price: 110,
-      image_url: 'https://images.unsplash.com/photo-1525755662778-989d0524087e?auto=format&fit=crop&w=800&q=80',
+      price: 80,
+      original_price: 95,
+      image_url: 'https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=800&q=80',
       available_quantity: 25,
       is_available: 1,
-      prep_time_minutes: 15,
-      rating: 4.7,
-      review_count: 67
+      prep_time_minutes: 20,
+      rating: 4.86,
+      review_count: 47
     },
     {
       id: 'bb-6',
       seller_id: 'seller-2',
-      category_id: 'cat-dinner',
-      food_name: 'Chicken Dum Biryani Bowl',
-      description: 'Slow-cooked aromatic long-grain basmati rice with tender chicken piece, boiled egg, mint, and cool raita.',
+      category_id: 'cat-lunch',
+      food_name: 'Chicken Fried Rice & Sauce',
+      description: 'Classic wok tossed chicken fried rice with tender diced chicken, vegetables, scrambled eggs, and spicy schezwan sauce.',
       food_type: 'non-veg',
       module: 'BudgetBite',
-      price: 115,
-      original_price: 150,
-      image_url: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&w=800&q=80',
-      available_quantity: 20,
-      is_available: 1,
-      prep_time_minutes: 20,
-      rating: 4.9,
-      review_count: 142
-    },
-    {
-      id: 'bb-7',
-      seller_id: 'seller-2',
-      category_id: 'cat-lunch',
-      food_name: 'Classic Veg Hakka Noodles',
-      description: 'Stir-fried street-style noodles tossed with shredded cabbage, bell peppers, carrots, spring onions, and garlic.',
-      food_type: 'veg',
-      module: 'BudgetBite',
-      price: 60,
-      original_price: 80,
-      image_url: 'https://images.unsplash.com/photo-1585032226651-759b368d7246?auto=format&fit=crop&w=800&q=80',
-      available_quantity: 30,
-      is_available: 1,
-      prep_time_minutes: 15,
-      rating: 4.6,
-      review_count: 82
-    },
-    {
-      id: 'bb-8',
-      seller_id: 'seller-2',
-      category_id: 'cat-lunch',
-      food_name: 'Punjabi Rajma Chawal',
-      description: 'Slow-cooked Kashmiri red kidney beans in rich spiced tomato gravy served with fluffy steamed basmati rice.',
-      food_type: 'veg',
-      module: 'BudgetBite',
-      price: 65,
-      original_price: 85,
-      image_url: 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?auto=format&fit=crop&w=800&q=80',
-      available_quantity: 25,
-      is_available: 1,
-      prep_time_minutes: 15,
-      rating: 4.8,
-      review_count: 94
-    },
-    {
-      id: 'bb-9',
-      seller_id: 'seller-1',
-      category_id: 'cat-dinner',
-      food_name: 'Paneer Butter Masala Bowl',
-      description: 'Soft cottage cheese cubes in rich velvety makhani sauce, served with choice of 2 chapatis or jeera rice.',
-      food_type: 'veg',
-      module: 'BudgetBite',
-      price: 90,
+      price: 95,
       original_price: 120,
-      image_url: 'https://images.unsplash.com/photo-1631452180519-c014fe946bc7?auto=format&fit=crop&w=800&q=80',
-      available_quantity: 18,
+      image_url: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?auto=format&fit=crop&w=800&q=80',
+      available_quantity: 22,
       is_available: 1,
       prep_time_minutes: 20,
       rating: 4.9,
-      review_count: 105
+      review_count: 78
     },
 
-    // --- SaveMyMeal Surplus Items (Active deals with up to 45% discount & live cutoff times) ---
+    // --- SaveMyMeal Surplus Items ---
     {
       id: 'smm-1',
       seller_id: 'seller-2',
-      category_id: 'cat-dinner',
+      category_id: 'cat-lunch',
       food_name: 'Surplus Chicken Biryani & Salan',
-      description: 'Fresh evening surplus portion of royal dum chicken biryani packed with spicy mirchi ka salan and onion raita.',
+      description: 'Fresh afternoon batch of authentic chicken biryani rescued before evening rush. Served with spiced brinjal salan and onion raita.',
       food_type: 'non-veg',
       module: 'SaveMyMeal',
       price: 75,
@@ -380,100 +366,65 @@ export const SEED_DATA = {
       available_quantity: 8,
       is_available: 1,
       prep_time_minutes: 10,
-      rating: 4.9,
-      review_count: 48
+      rating: 4.95,
+      review_count: 84
     },
     {
       id: 'smm-2',
       seller_id: 'seller-1',
-      category_id: 'cat-lunch',
-      food_name: 'Surplus Paneer Makhani Rice Bowl',
-      description: 'Afternoon surplus portion of aromatic jeera rice paired with rich paneer butter masala. Hygienically packed.',
-      food_type: 'veg',
-      module: 'SaveMyMeal',
-      price: 60,
-      original_price: 105,
-      image_url: 'https://images.unsplash.com/photo-1546833998-877b37c2e5c6?auto=format&fit=crop&w=800&q=80',
-      available_quantity: 6,
-      is_available: 1,
-      prep_time_minutes: 10,
-      rating: 4.8,
-      review_count: 39
-    },
-    {
-      id: 'smm-3',
-      seller_id: 'seller-1',
       category_id: 'cat-dinner',
-      food_name: 'Surplus Chapati & Yellow Dal Tadka',
-      description: '4 warm whole wheat rotis served with homestyle yellow dal tadka, roasted papad, and fresh mixed pickle.',
+      food_name: 'Evening Chapati Curry Surplus Set',
+      description: 'Four fresh whole wheat tawa chapatis with mixed vegetable kurma and dal fry, freshly prepared today.',
       food_type: 'veg',
       module: 'SaveMyMeal',
       price: 45,
       original_price: 80,
-      image_url: 'https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=800&q=80',
-      available_quantity: 10,
+      image_url: 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?auto=format&fit=crop&w=800&q=80',
+      available_quantity: 12,
       is_available: 1,
       prep_time_minutes: 10,
-      rating: 4.7,
-      review_count: 32
+      rating: 4.88,
+      review_count: 36
     },
     {
-      id: 'smm-4',
+      id: 'smm-3',
       seller_id: 'seller-2',
       category_id: 'cat-lunch',
-      food_name: 'Surplus Egg Curry Rice Box',
-      description: 'Midday surplus container of two spiced boiled eggs in rich gravy with steamed basmati rice.',
-      food_type: 'non-veg',
+      food_name: 'Surplus Paneer Butter Masala Bowl',
+      description: 'Creamy butter masala with 2 flaky parathas and steamed jeera rice portion at maximum discount.',
+      food_type: 'veg',
       module: 'SaveMyMeal',
-      price: 55,
-      original_price: 95,
-      image_url: 'https://images.unsplash.com/photo-1589302168068-964664d93dc0?auto=format&fit=crop&w=800&q=80',
-      available_quantity: 7,
+      price: 65,
+      original_price: 115,
+      image_url: 'https://images.unsplash.com/photo-1631452180519-c014fe946bc7?auto=format&fit=crop&w=800&q=80',
+      available_quantity: 6,
       is_available: 1,
       prep_time_minutes: 10,
-      rating: 4.8,
-      review_count: 41
+      rating: 4.9,
+      review_count: 45
     }
   ],
   coupons: [
-    {
-      id: 'cp-welcome',
-      coupon_code: 'WELCOME50',
-      discount_type: 'flat',
-      discount_value: 50,
-      minimum_order_amount: 150,
-      maximum_discount: 50,
-      is_active: 1
-    },
-    {
-      id: 'cp-campus',
-      coupon_code: 'CAMPUS20',
-      discount_type: 'percentage',
-      discount_value: 20,
-      minimum_order_amount: 100,
-      maximum_discount: 40,
-      is_active: 1
-    }
+    { id: 'cpn-1', coupon_code: 'WELCOME50', discount_type: 'flat', discount_value: 50, minimum_order_amount: 150, maximum_discount: 50, is_active: 1 },
+    { id: 'cpn-2', coupon_code: 'CAMPUS20', discount_type: 'percentage', discount_value: 20, minimum_order_amount: 100, maximum_discount: 40, is_active: 1 },
+    { id: 'cpn-3', coupon_code: 'BITE15', discount_type: 'percentage', discount_value: 15, minimum_order_amount: 80, maximum_discount: 30, is_active: 1 },
+    { id: 'cpn-4', coupon_code: 'SAVER10', discount_type: 'flat', discount_value: 10, minimum_order_amount: 50, maximum_discount: 10, is_active: 1 }
   ]
 };
 
-// Database Initialization Runner
-export const initializeDatabase = async () => {
+// Initialize schema and seed data in MySQL
+export const initializeDatabase = async (): Promise<boolean> => {
   const connected = await checkDbConnection();
   if (!connected) {
-    console.log('[MySQL] Running in graceful mock storage mode since local MySQL service is not reachable.');
+    console.log('[MySQL] Running in fallback storage mode with in-memory persistence.');
     return false;
   }
 
   try {
-    console.log('[MySQL] Checking & initializing tables...');
     const conn = await pool.getConnection();
 
-    // Create database if not exists
-    await conn.query(`CREATE DATABASE IF NOT EXISTS \`${process.env.DB_NAME || 'mealmate'}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`);
-    await conn.query(`USE \`${process.env.DB_NAME || 'mealmate'}\`;`);
+    console.log('[MySQL] Initializing 21 normalized tables in mealmate_db...');
 
-    // Ensure all 18 tables exist
     // 1. users
     await conn.query(`
       CREATE TABLE IF NOT EXISTS users (
@@ -492,7 +443,40 @@ export const initializeDatabase = async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    // 2. sellers
+    // 2. user_addresses
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS user_addresses (
+        id VARCHAR(64) PRIMARY KEY,
+        user_id VARCHAR(64) NOT NULL,
+        address_title VARCHAR(80) NOT NULL,
+        full_address TEXT NOT NULL,
+        city VARCHAR(80) NOT NULL DEFAULT 'Campus',
+        postal_code VARCHAR(20) NOT NULL DEFAULT '600001',
+        phone VARCHAR(25) NOT NULL,
+        is_default TINYINT(1) NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_addr_user (user_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    // Compatible delivery_addresses view/table
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS delivery_addresses (
+        id VARCHAR(64) PRIMARY KEY,
+        customer_id VARCHAR(64) NOT NULL,
+        address_title VARCHAR(80) NOT NULL,
+        full_address TEXT NOT NULL,
+        city VARCHAR(80) NOT NULL DEFAULT 'Campus',
+        postal_code VARCHAR(20) NOT NULL DEFAULT '600001',
+        phone VARCHAR(25) NOT NULL,
+        is_default TINYINT(1) NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_addr_customer (customer_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    // 3. sellers
     await conn.query(`
       CREATE TABLE IF NOT EXISTS sellers (
         id VARCHAR(64) PRIMARY KEY,
@@ -508,7 +492,7 @@ export const initializeDatabase = async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    // 3. food_categories
+    // 4. food_categories
     await conn.query(`
       CREATE TABLE IF NOT EXISTS food_categories (
         id VARCHAR(64) PRIMARY KEY,
@@ -519,7 +503,7 @@ export const initializeDatabase = async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    // 4. food_items
+    // 5. food_items
     await conn.query(`
       CREATE TABLE IF NOT EXISTS food_items (
         id VARCHAR(64) PRIMARY KEY,
@@ -545,23 +529,47 @@ export const initializeDatabase = async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    // 5. delivery_addresses
+    // 6. food_inventory
     await conn.query(`
-      CREATE TABLE IF NOT EXISTS delivery_addresses (
+      CREATE TABLE IF NOT EXISTS food_inventory (
         id VARCHAR(64) PRIMARY KEY,
-        customer_id VARCHAR(64) NOT NULL,
-        address_title VARCHAR(80) NOT NULL,
-        full_address TEXT NOT NULL,
-        city VARCHAR(80) NOT NULL DEFAULT 'Campus',
-        postal_code VARCHAR(20) NOT NULL DEFAULT '600001',
-        phone VARCHAR(25) NOT NULL,
-        is_default TINYINT(1) NOT NULL DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        INDEX idx_addr_customer (customer_id)
+        food_item_id VARCHAR(64) NOT NULL,
+        seller_id VARCHAR(64) NOT NULL,
+        current_stock INT NOT NULL DEFAULT 0,
+        minimum_threshold INT NOT NULL DEFAULT 5,
+        last_restocked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_inv_food (food_item_id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    // 6. orders
+    // 7. carts
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS carts (
+        id VARCHAR(64) PRIMARY KEY,
+        user_id VARCHAR(64) NOT NULL UNIQUE,
+        coupon_code VARCHAR(40) NULL,
+        use_reward_points TINYINT(1) NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_cart_user (user_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    // 8. cart_items
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS cart_items (
+        id VARCHAR(64) PRIMARY KEY,
+        cart_id VARCHAR(64) NOT NULL,
+        food_item_id VARCHAR(64) NOT NULL,
+        quantity INT NOT NULL DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_ci_cart (cart_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    // 9. orders
     await conn.query(`
       CREATE TABLE IF NOT EXISTS orders (
         id VARCHAR(64) PRIMARY KEY,
@@ -580,6 +588,8 @@ export const initializeDatabase = async () => {
         order_status ENUM('Order Placed', 'Confirmed', 'Preparing', 'Ready for Pickup', 'Out for Delivery', 'Delivered', 'Cancelled', 'Rejected') NOT NULL DEFAULT 'Order Placed',
         delivery_address_id VARCHAR(64),
         delivery_address_text TEXT,
+        delivery_otp VARCHAR(10) NULL,
+        otp_verified TINYINT(1) NOT NULL DEFAULT 0,
         cancellation_reason TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -589,7 +599,7 @@ export const initializeDatabase = async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    // 7. order_items
+    // 10. order_items
     await conn.query(`
       CREATE TABLE IF NOT EXISTS order_items (
         id VARCHAR(64) PRIMARY KEY,
@@ -609,36 +619,57 @@ export const initializeDatabase = async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    // 8. order_otps
+    // 11. payments
     await conn.query(`
-      CREATE TABLE IF NOT EXISTS order_otps (
+      CREATE TABLE IF NOT EXISTS payments (
         id VARCHAR(64) PRIMARY KEY,
         order_id VARCHAR(64) NOT NULL UNIQUE,
-        plain_otp VARCHAR(10) NOT NULL,
-        otp_hash VARCHAR(255) NOT NULL,
-        expires_at TIMESTAMP NOT NULL,
-        verified_at TIMESTAMP NULL,
-        failed_attempts INT NOT NULL DEFAULT 0,
+        customer_id VARCHAR(64) NOT NULL,
+        amount DECIMAL(10,2) NOT NULL,
+        payment_method ENUM('COD') NOT NULL DEFAULT 'COD',
+        payment_status ENUM('Pending', 'Paid', 'Failed', 'Refunded') NOT NULL DEFAULT 'Pending',
+        received_at TIMESTAMP NULL,
+        transaction_reference VARCHAR(100) NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        INDEX idx_otp_order (order_id)
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_payment_order (order_id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    // 9. order_status_history
+    // 12. subscriptions
     await conn.query(`
-      CREATE TABLE IF NOT EXISTS order_status_history (
+      CREATE TABLE IF NOT EXISTS subscriptions (
         id VARCHAR(64) PRIMARY KEY,
-        order_id VARCHAR(64) NOT NULL,
-        old_status VARCHAR(64),
-        new_status VARCHAR(64) NOT NULL,
-        changed_by VARCHAR(64) NOT NULL,
-        reason TEXT,
+        customer_id VARCHAR(64) NOT NULL,
+        seller_id VARCHAR(64) NOT NULL,
+        plan_name VARCHAR(100) NOT NULL,
+        subscription_type ENUM('weekly', 'monthly') NOT NULL DEFAULT 'weekly',
+        meal_type ENUM('Breakfast', 'Lunch', 'Dinner', 'All') NOT NULL DEFAULT 'Lunch',
+        start_date DATE NOT NULL,
+        end_date DATE NOT NULL,
+        delivery_slot VARCHAR(60) NOT NULL DEFAULT '12:30 PM - 1:30 PM',
+        status ENUM('Active', 'Paused', 'Cancelled', 'Expired', 'Completed') NOT NULL DEFAULT 'Active',
+        total_amount DECIMAL(10,2) NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        INDEX idx_history_order (order_id)
+        INDEX idx_sub_customer (customer_id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    // 10. loyalty_points
+    // 13. subscription_orders
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS subscription_orders (
+        id VARCHAR(64) PRIMARY KEY,
+        subscription_id VARCHAR(64) NOT NULL,
+        delivery_date DATE NOT NULL,
+        meal_name VARCHAR(160) NOT NULL,
+        delivery_status ENUM('Scheduled', 'Preparing', 'Out for Delivery', 'Delivered', 'Skipped') NOT NULL DEFAULT 'Scheduled',
+        delivered_at TIMESTAMP NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_subord_sub (subscription_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    // 14. loyalty_points
     await conn.query(`
       CREATE TABLE IF NOT EXISTS loyalty_points (
         id VARCHAR(64) PRIMARY KEY,
@@ -649,7 +680,7 @@ export const initializeDatabase = async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    // 11. loyalty_transactions
+    // 15. loyalty_transactions
     await conn.query(`
       CREATE TABLE IF NOT EXISTS loyalty_transactions (
         id VARCHAR(64) PRIMARY KEY,
@@ -664,7 +695,99 @@ export const initializeDatabase = async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    // 12. food_savings
+    // 16. coupons
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS coupons (
+        id VARCHAR(64) PRIMARY KEY,
+        coupon_code VARCHAR(40) NOT NULL UNIQUE,
+        discount_type ENUM('percentage', 'flat') NOT NULL DEFAULT 'percentage',
+        discount_value DECIMAL(10,2) NOT NULL,
+        minimum_order_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+        maximum_discount DECIMAL(10,2),
+        is_active TINYINT(1) NOT NULL DEFAULT 1,
+        expiry_date DATE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    // 17. surplus_food
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS surplus_food (
+        id VARCHAR(64) PRIMARY KEY,
+        seller_id VARCHAR(64) NOT NULL,
+        food_item_id VARCHAR(64) NOT NULL,
+        original_price DECIMAL(10,2) NOT NULL,
+        discounted_price DECIMAL(10,2) NOT NULL,
+        discount_percentage INT NOT NULL,
+        available_portions INT NOT NULL DEFAULT 10,
+        cutoff_time TIME NOT NULL,
+        availability_date DATE NOT NULL,
+        status ENUM('active', 'expired', 'sold_out') NOT NULL DEFAULT 'active',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_surplus_seller (seller_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    // 18. surplus_orders
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS surplus_orders (
+        id VARCHAR(64) PRIMARY KEY,
+        order_id VARCHAR(64) NOT NULL,
+        surplus_food_id VARCHAR(64) NOT NULL,
+        quantity INT NOT NULL DEFAULT 1,
+        money_saved DECIMAL(10,2) NOT NULL,
+        waste_diverted_kg DECIMAL(6,2) NOT NULL DEFAULT 0.40,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_surpord_order (order_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    // 19. delivery_tracking
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS delivery_tracking (
+        id VARCHAR(64) PRIMARY KEY,
+        order_id VARCHAR(64) NOT NULL UNIQUE,
+        delivery_person_name VARCHAR(100) DEFAULT 'Campus Delivery Buddy',
+        delivery_person_phone VARCHAR(25) DEFAULT '+91 98765 00000',
+        current_status VARCHAR(64) NOT NULL,
+        location_note VARCHAR(255) DEFAULT 'Campus Food Hub',
+        estimated_delivery_minutes INT DEFAULT 20,
+        otp_verified TINYINT(1) NOT NULL DEFAULT 0,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_track_order (order_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    // 20. reviews
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS reviews (
+        id VARCHAR(64) PRIMARY KEY,
+        order_id VARCHAR(64) NULL,
+        food_item_id VARCHAR(64) NOT NULL,
+        customer_id VARCHAR(64) NOT NULL,
+        customer_name VARCHAR(120) NOT NULL,
+        rating INT NOT NULL DEFAULT 5,
+        comment TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_review_food (food_item_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    // 21. notifications
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id VARCHAR(64) PRIMARY KEY,
+        user_id VARCHAR(64) NOT NULL,
+        title VARCHAR(160) NOT NULL,
+        message TEXT NOT NULL,
+        notification_type ENUM('order', 'loyalty', 'approval', 'general') NOT NULL DEFAULT 'order',
+        is_read TINYINT(1) NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_notif_user (user_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    // Supporting operational tables
     await conn.query(`
       CREATE TABLE IF NOT EXISTS food_savings (
         id VARCHAR(64) PRIMARY KEY,
@@ -684,85 +807,6 @@ export const initializeDatabase = async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
-    // 13. coupons
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS coupons (
-        id VARCHAR(64) PRIMARY KEY,
-        coupon_code VARCHAR(40) NOT NULL UNIQUE,
-        discount_type ENUM('percentage', 'flat') NOT NULL DEFAULT 'percentage',
-        discount_value DECIMAL(10,2) NOT NULL,
-        minimum_order_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-        maximum_discount DECIMAL(10,2),
-        is_active TINYINT(1) NOT NULL DEFAULT 1,
-        expiry_date DATE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `);
-
-    // 14. subscriptions
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS subscriptions (
-        id VARCHAR(64) PRIMARY KEY,
-        customer_id VARCHAR(64) NOT NULL,
-        seller_id VARCHAR(64) NOT NULL,
-        plan_name VARCHAR(100) NOT NULL,
-        subscription_type ENUM('weekly', 'monthly') NOT NULL DEFAULT 'weekly',
-        meal_type ENUM('Breakfast', 'Lunch', 'Dinner', 'All') NOT NULL DEFAULT 'Lunch',
-        start_date DATE NOT NULL,
-        end_date DATE NOT NULL,
-        delivery_slot VARCHAR(60) NOT NULL DEFAULT '12:30 PM - 1:30 PM',
-        status ENUM('active', 'paused', 'cancelled', 'completed') NOT NULL DEFAULT 'active',
-        total_amount DECIMAL(10,2) NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        INDEX idx_sub_customer (customer_id)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `);
-
-    // 15. surplus_food
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS surplus_food (
-        id VARCHAR(64) PRIMARY KEY,
-        seller_id VARCHAR(64) NOT NULL,
-        food_item_id VARCHAR(64) NOT NULL,
-        original_price DECIMAL(10,2) NOT NULL,
-        discounted_price DECIMAL(10,2) NOT NULL,
-        discount_percentage INT NOT NULL,
-        available_portions INT NOT NULL DEFAULT 10,
-        cutoff_time TIME NOT NULL,
-        availability_date DATE NOT NULL,
-        status ENUM('active', 'expired', 'sold_out') NOT NULL DEFAULT 'active',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        INDEX idx_surplus_seller (seller_id)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `);
-
-    // 16. inventory_transactions
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS inventory_transactions (
-        id VARCHAR(64) PRIMARY KEY,
-        food_item_id VARCHAR(64) NOT NULL,
-        order_id VARCHAR(64),
-        quantity_changed INT NOT NULL,
-        transaction_type ENUM('order_deduct', 'order_restore', 'seller_restock', 'spoilage_writeoff') NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `);
-
-    // 17. notifications
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS notifications (
-        id VARCHAR(64) PRIMARY KEY,
-        user_id VARCHAR(64) NOT NULL,
-        title VARCHAR(160) NOT NULL,
-        message TEXT NOT NULL,
-        notification_type ENUM('order', 'loyalty', 'approval', 'general') NOT NULL DEFAULT 'order',
-        is_read TINYINT(1) NOT NULL DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        INDEX idx_notif_user (user_id)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    `);
-
-    // 18. disputes
     await conn.query(`
       CREATE TABLE IF NOT EXISTS disputes (
         id VARCHAR(64) PRIMARY KEY,
@@ -774,6 +818,44 @@ export const initializeDatabase = async () => {
         admin_response TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         INDEX idx_dispute_order (order_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS order_otps (
+        id VARCHAR(64) PRIMARY KEY,
+        order_id VARCHAR(64) NOT NULL UNIQUE,
+        plain_otp VARCHAR(10) NOT NULL,
+        otp_hash VARCHAR(255) NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        verified_at TIMESTAMP NULL,
+        failed_attempts INT NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_otp_order (order_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS order_status_history (
+        id VARCHAR(64) PRIMARY KEY,
+        order_id VARCHAR(64) NOT NULL,
+        old_status VARCHAR(64),
+        new_status VARCHAR(64) NOT NULL,
+        changed_by VARCHAR(64) NOT NULL,
+        reason TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_history_order (order_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS inventory_transactions (
+        id VARCHAR(64) PRIMARY KEY,
+        food_item_id VARCHAR(64) NOT NULL,
+        order_id VARCHAR(64),
+        quantity_changed INT NOT NULL,
+        transaction_type ENUM('order_deduct', 'order_restore', 'seller_restock', 'spoilage_writeoff') NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
 
@@ -828,6 +910,12 @@ export const initializeDatabase = async () => {
             f.prep_time_minutes, f.rating, f.review_count
           ]
         );
+
+        // Seed food inventory
+        await conn.query(
+          'INSERT IGNORE INTO food_inventory (id, food_item_id, seller_id, current_stock, minimum_threshold) VALUES (?, ?, ?, ?, 5)',
+          [`inv-${f.id}`, f.id, f.seller_id, f.available_quantity]
+        );
       }
     }
 
@@ -842,12 +930,33 @@ export const initializeDatabase = async () => {
       }
     }
 
+    // Seed user addresses if empty
+    const [addrRows]: any = await conn.query('SELECT COUNT(*) as cnt FROM user_addresses');
+    if (addrRows[0].cnt === 0) {
+      await conn.query(
+        `INSERT IGNORE INTO user_addresses (id, user_id, address_title, full_address, city, postal_code, phone, is_default)
+         VALUES ('addr-1', 'usr-cust-1', 'Hostel Room', 'Room 304, Kaveri Hostel Block B, Main Campus', 'Campus', '600001', '+91 98765 44444', 1)`
+      );
+      await conn.query(
+        `INSERT IGNORE INTO delivery_addresses (id, customer_id, address_title, full_address, city, postal_code, phone, is_default)
+         VALUES ('addr-1', 'usr-cust-1', 'Hostel Room', 'Room 304, Kaveri Hostel Block B, Main Campus', 'Campus', '600001', '+91 98765 44444', 1)`
+      );
+    }
+
+    // Seed loyalty points if empty
+    const [lpRows]: any = await conn.query('SELECT COUNT(*) as cnt FROM loyalty_points');
+    if (lpRows[0].cnt === 0) {
+      await conn.query(
+        `INSERT IGNORE INTO loyalty_points (id, customer_id, total_points, redeemed_points)
+         VALUES ('lp-1', 'usr-cust-1', 60, 0)`
+      );
+    }
+
     conn.release();
-    console.log('[MySQL] Database and all 18 tables verified & initialized successfully!');
+    console.log('[MySQL] Database and all 21 tables verified & initialized successfully!');
     return true;
   } catch (error) {
     console.error('[MySQL] Table initialization error:', error);
     return false;
   }
 };
-

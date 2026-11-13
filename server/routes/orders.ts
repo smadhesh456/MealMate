@@ -83,14 +83,29 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: Response) => {
         // 1. Insert order
         await conn.query(
           `INSERT INTO orders 
-           (id, order_number, customer_id, seller_id, subtotal, item_discount, coupon_discount, loyalty_discount, delivery_fee, platform_fee, final_total, payment_method, payment_status, order_status, delivery_address_id, delivery_address_text)
-           VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, 'COD', 'Pending', 'Order Placed', ?, ?)`,
+           (id, order_number, customer_id, seller_id, subtotal, item_discount, coupon_discount, loyalty_discount, delivery_fee, platform_fee, final_total, payment_method, payment_status, order_status, delivery_address_id, delivery_address_text, delivery_otp, otp_verified)
+           VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, 'COD', 'Pending', 'Order Placed', ?, ?, ?, 0)`,
           [
             orderId, orderNumber, customerId, seller_id,
             bill.subtotal, bill.couponDiscount, bill.loyaltyDiscount,
             bill.deliveryFee, bill.platformFee, bill.finalTotal,
-            delivery_address_id || null, delivery_address_text || 'Campus Hostel Address'
+            delivery_address_id || null, delivery_address_text || 'Campus Hostel Address',
+            plainOtp
           ]
+        );
+
+        // 1b. Insert Cash on Delivery payment record
+        await conn.query(
+          `INSERT INTO payments (id, order_id, customer_id, amount, payment_method, payment_status)
+           VALUES (?, ?, ?, ?, 'COD', 'Pending')`,
+          [`pay-${Date.now()}`, orderId, customerId, bill.finalTotal]
+        );
+
+        // 1c. Insert delivery tracking record
+        await conn.query(
+          `INSERT INTO delivery_tracking (id, order_id, delivery_person_name, current_status, location_note, estimated_delivery_minutes, otp_verified)
+           VALUES (?, ?, 'Campus Delivery Buddy', 'Order Placed', 'Campus Food Hub', 20, 0)`,
+          [`track-${Date.now()}`, orderId]
         );
 
         // 2. Insert order items
@@ -118,12 +133,33 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: Response) => {
               [qty, item.id]
             );
 
+            await conn.query(
+              'UPDATE food_inventory SET current_stock = GREATEST(0, current_stock - ?) WHERE food_item_id = ?',
+              [qty, item.id]
+            );
+
             // Log inventory transaction
             await conn.query(
               `INSERT INTO inventory_transactions (id, food_item_id, order_id, quantity_changed, transaction_type)
                VALUES (?, ?, ?, ?, 'order_deduct')`,
               [`inv-${Date.now()}-${Math.floor(Math.random() * 1000)}`, item.id, orderId, -qty]
             );
+
+            // If surplus food, update surplus_food and insert into surplus_orders
+            if (item.module === 'SaveMyMeal') {
+              const [surpRows]: any = await conn.query('SELECT id FROM surplus_food WHERE food_item_id = ?', [item.id]);
+              if (surpRows.length > 0) {
+                const sId = surpRows[0].id;
+                const origP = Number(item.originalPrice || unitPrice);
+                const saved = Math.max(0, (origP - unitPrice) * qty);
+                await conn.query(
+                  `INSERT INTO surplus_orders (id, order_id, surplus_food_id, quantity, money_saved, waste_diverted_kg)
+                   VALUES (?, ?, ?, ?, ?, ?)`,
+                  [`so-${Date.now()}-${Math.floor(Math.random() * 1000)}`, orderId, sId, qty, saved, 0.40 * qty]
+                );
+                await conn.query('UPDATE surplus_food SET available_portions = GREATEST(0, available_portions - ?) WHERE id = ?', [qty, sId]);
+              }
+            }
           }
         }
 
@@ -225,7 +261,8 @@ router.post('/', authenticateToken, async (req: AuthRequest, res: Response) => {
         id: orderId,
         orderNumber,
         finalTotal: bill.finalTotal,
-        otp: plainOtp, // securely provided to the ordering customer!
+        otp: plainOtp,
+        plain_otp: plainOtp, // securely provided to the ordering customer!
         orderStatus: 'Order Placed',
         paymentStatus: 'Pending',
         bill
@@ -506,7 +543,19 @@ router.post('/:id/verify-otp', authenticateToken, async (req: AuthRequest, res: 
 
         // Transition order to Delivered & Cash on Delivery payment to Paid
         await conn.query(
-          "UPDATE orders SET order_status = 'Delivered', payment_status = 'Paid', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+          "UPDATE orders SET order_status = 'Delivered', payment_status = 'Paid', otp_verified = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+          [id]
+        );
+
+        // Update payment transaction to Paid with timestamp
+        await conn.query(
+          "UPDATE payments SET payment_status = 'Paid', received_at = CURRENT_TIMESTAMP WHERE order_id = ?",
+          [id]
+        );
+
+        // Update delivery tracking status to Delivered
+        await conn.query(
+          "UPDATE delivery_tracking SET current_status = 'Delivered', otp_verified = 1, estimated_delivery_minutes = 0 WHERE order_id = ?",
           [id]
         );
 
@@ -695,6 +744,82 @@ router.post('/:id/cancel', authenticateToken, async (req: AuthRequest, res: Resp
     });
   } catch (err) {
     res.status(500).json({ success: false, error: 'Could not cancel order.' });
+  }
+});
+
+// GET /api/orders/:id/tracking - Delivery tracking details
+router.get('/:id/tracking', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    if (getDbConnected()) {
+      const conn = await pool.getConnection();
+      try {
+        const [rows]: any = await conn.query('SELECT * FROM delivery_tracking WHERE order_id = ?', [id]);
+        if (rows.length > 0) {
+          return res.json({ success: true, tracking: rows[0] });
+        }
+        return res.json({
+          success: true,
+          tracking: {
+            order_id: id,
+            delivery_person_name: 'Campus Delivery Buddy',
+            delivery_person_phone: '+91 98765 00000',
+            current_status: 'On the Way',
+            location_note: 'Main Campus Gate',
+            estimated_delivery_minutes: 15,
+            otp_verified: 0
+          }
+        });
+      } finally {
+        conn.release();
+      }
+    } else {
+      return res.json({
+        success: true,
+        tracking: {
+          order_id: id,
+          delivery_person_name: 'Campus Delivery Buddy',
+          delivery_person_phone: '+91 98765 00000',
+          current_status: 'On the Way',
+          location_note: 'Main Campus Gate',
+          estimated_delivery_minutes: 15,
+          otp_verified: 0
+        }
+      });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Failed to fetch tracking data.' });
+  }
+});
+
+// GET /api/orders/:id/payment - Payment record
+router.get('/:id/payment', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    if (getDbConnected()) {
+      const conn = await pool.getConnection();
+      try {
+        const [rows]: any = await conn.query('SELECT * FROM payments WHERE order_id = ?', [id]);
+        if (rows.length > 0) {
+          return res.json({ success: true, payment: rows[0] });
+        }
+        return res.status(404).json({ success: false, error: 'Payment record not found.' });
+      } finally {
+        conn.release();
+      }
+    } else {
+      return res.json({
+        success: true,
+        payment: {
+          order_id: id,
+          payment_method: 'COD',
+          payment_status: 'Pending',
+          amount: 100
+        }
+      });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Failed to fetch payment info.' });
   }
 });
 

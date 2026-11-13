@@ -9,6 +9,7 @@
     "dev": "concurrently -k -n \"BACKEND,FRONTEND\" -c \"blue,green\" \"bun server/index.ts\" \"vite\"",
     "start": "concurrently -k -n \"BACKEND,FRONTEND\" -c \"blue,green\" \"bun server/index.ts\" \"vite\"",
     "build": "tsc -b && vite build",
+    "test:api": "bun server/test_endpoints.ts",
     "lint": "oxlint",
     "preview": "vite preview"
   },

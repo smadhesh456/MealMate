@@ -4,6 +4,7 @@ import { useAuth } from './AuthContext';
 import type { FoodItem, CartItem, BillBreakdown } from '../types';
 import { calculateBill } from '../utils/pricing';
 import { useToast } from './ToastContext';
+import { api } from '../services/api';
 
 interface CartContextType {
   items: CartItem[];
@@ -45,7 +46,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   });
 
-  const [useRewardPoints, setUseRewardPoints] = useState<boolean>(() => {
+  const [useRewardPoints, setUseRewardPointsState] = useState<boolean>(() => {
     try {
       return localStorage.getItem(REWARD_STORAGE_KEY) === 'true';
     } catch {
@@ -56,6 +57,42 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { showToast } = useToast();
   const { user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+
+  // Hydrate cart from backend MySQL database on login
+  useEffect(() => {
+    if (isAuthenticated && user?.id) {
+      api.getCart().then(res => {
+        if (res?.success && res.cart && Array.isArray(res.cart.items) && res.cart.items.length > 0) {
+          const loadedItems: CartItem[] = res.cart.items.map((it: any) => ({
+            foodItem: {
+              id: it.foodId,
+              name: it.name,
+              price: it.price,
+              originalPrice: it.originalPrice,
+              image: it.image,
+              sellerId: it.sellerId,
+              sellerName: it.sellerName,
+              module: it.module,
+              isVeg: it.isVeg,
+              stockQuantity: it.stockQuantity,
+              isAvailable: it.isAvailable,
+              category: 'Campus Dish',
+              categoryId: 'cat-lunch',
+              prepTimeMinutes: 20,
+              rating: 4.8,
+              reviewCount: 25
+            },
+            quantity: it.quantity
+          }));
+          setItems(loadedItems);
+          if (res.cart.couponCode) setCouponCode(res.cart.couponCode);
+          if (res.cart.useRewardPoints !== undefined) setUseRewardPointsState(res.cart.useRewardPoints);
+        }
+      }).catch(err => {
+        console.warn('Backend cart hydration notice:', err);
+      });
+    }
+  }, [isAuthenticated, user?.id]);
 
   useEffect(() => {
     try {
@@ -77,6 +114,25 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [couponCode]);
 
+  useEffect(() => {
+    try {
+      if (useRewardPoints) {
+        localStorage.setItem(REWARD_STORAGE_KEY, 'true');
+      } else {
+        localStorage.removeItem(REWARD_STORAGE_KEY);
+      }
+    } catch (err) {
+      console.error('Error saving reward state', err);
+    }
+  }, [useRewardPoints]);
+
+  const setUseRewardPoints = (use: boolean) => {
+    setUseRewardPointsState(use);
+    if (isAuthenticated && user?.id) {
+      api.setCartLoyalty(use).catch(e => console.warn('Cart loyalty sync notice:', e));
+    }
+  };
+
   const isItemInCutoff = (food: FoodItem): boolean => {
     if (food.module === 'SaveMyMeal' && food.cutoffTime) {
       const cutoff = new Date(food.cutoffTime).getTime();
@@ -86,20 +142,18 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const addToCart = (food: FoodItem, quantity = 1): boolean => {
-    // 0. Check authentication - Block guest ordering (Requirement 3)
     if (!isAuthenticated || !user) {
       showToast('Please sign in or create an account to order food.', 'warning');
       const returnUrl = encodeURIComponent(window.location.pathname + window.location.search);
       navigate(`/login?redirect=${returnUrl}`);
       return false;
     }
-    // 1. Check stock
+
     if (food.stockQuantity <= 0 || !food.isAvailable) {
       showToast(`Sorry, "${food.name}" is currently sold out!`, 'error');
       return false;
     }
 
-    // 2. Check SaveMyMeal cutoff
     if (isItemInCutoff(food)) {
       showToast(`Cutoff time passed for "${food.name}". Orders are closed!`, 'error');
       return false;
@@ -136,6 +190,10 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     });
 
+    if (success && isAuthenticated && user?.id) {
+      api.addCartItem(food.id, quantity).catch(e => console.warn('Cart sync notice:', e));
+    }
+
     return success;
   };
 
@@ -163,6 +221,10 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return item;
       });
     });
+
+    if (isAuthenticated && user?.id) {
+      api.updateCartItemQuantity(foodId, quantity).catch(e => console.warn('Cart update notice:', e));
+    }
   };
 
   const removeFromCart = (foodId: string) => {
@@ -173,25 +235,21 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       return prev.filter(i => i.foodItem.id !== foodId);
     });
-  };
 
-  useEffect(() => {
-    try {
-      if (useRewardPoints) {
-        localStorage.setItem(REWARD_STORAGE_KEY, 'true');
-      } else {
-        localStorage.removeItem(REWARD_STORAGE_KEY);
-      }
-    } catch (err) {
-      console.error('Error saving reward state', err);
+    if (isAuthenticated && user?.id) {
+      api.removeCartItem(foodId).catch(e => console.warn('Cart item remove notice:', e));
     }
-  }, [useRewardPoints]);
+  };
 
   const clearCart = () => {
     setItems([]);
     setCouponCode('');
-    setUseRewardPoints(false);
+    setUseRewardPointsState(false);
     showToast('Cart cleared', 'info');
+
+    if (isAuthenticated && user?.id) {
+      api.clearCart().catch(e => console.warn('Cart clear notice:', e));
+    }
   };
 
   const applyCoupon = (code: string) => {
@@ -202,6 +260,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { success: false, message: 'MEAL10 requires minimum item total of ₹100' };
       }
       setCouponCode('MEAL10');
+      if (isAuthenticated && user?.id) api.applyCartCoupon('MEAL10').catch(() => {});
       return { success: true, message: 'Coupon MEAL10 applied! 10% off' };
     }
 
@@ -211,7 +270,28 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { success: false, message: 'COLLEGE20 requires minimum item total of ₹150' };
       }
       setCouponCode('COLLEGE20');
+      if (isAuthenticated && user?.id) api.applyCartCoupon('COLLEGE20').catch(() => {});
       return { success: true, message: 'Coupon COLLEGE20 applied! 20% off' };
+    }
+
+    if (cleanCode === 'WELCOME50') {
+      const currentBill = calculateBill(items, '', useRewardPoints);
+      if (currentBill.itemTotal < 150) {
+        return { success: false, message: 'WELCOME50 requires minimum item total of ₹150' };
+      }
+      setCouponCode('WELCOME50');
+      if (isAuthenticated && user?.id) api.applyCartCoupon('WELCOME50').catch(() => {});
+      return { success: true, message: 'Coupon WELCOME50 applied! ₹50 off' };
+    }
+
+    if (cleanCode === 'CAMPUS20') {
+      const currentBill = calculateBill(items, '', useRewardPoints);
+      if (currentBill.itemTotal < 100) {
+        return { success: false, message: 'CAMPUS20 requires minimum item total of ₹100' };
+      }
+      setCouponCode('CAMPUS20');
+      if (isAuthenticated && user?.id) api.applyCartCoupon('CAMPUS20').catch(() => {});
+      return { success: true, message: 'Coupon CAMPUS20 applied! 20% off' };
     }
 
     if (cleanCode === 'FREEDEL') {
@@ -220,15 +300,19 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { success: false, message: 'FREEDEL requires minimum item total of ₹80' };
       }
       setCouponCode('FREEDEL');
+      if (isAuthenticated && user?.id) api.applyCartCoupon('FREEDEL').catch(() => {});
       return { success: true, message: 'Coupon FREEDEL applied! Free Delivery' };
     }
 
-    return { success: false, message: 'Invalid or expired coupon code. Try MEAL10 or COLLEGE20.' };
+    return { success: false, message: 'Invalid or expired coupon code. Try WELCOME50, CAMPUS20, or MEAL10.' };
   };
 
   const removeCoupon = () => {
     setCouponCode('');
     showToast('Coupon removed', 'info');
+    if (isAuthenticated && user?.id) {
+      api.applyCartCoupon('').catch(() => {});
+    }
   };
 
   const totalItemsCount = items.reduce((sum, item) => sum + item.quantity, 0);
