@@ -15,7 +15,9 @@ import {
   Bike, 
   IndianRupee,
   ArrowRight,
-  Filter
+  Filter,
+  KeyRound,
+  ShieldAlert
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -24,18 +26,18 @@ export const SellerOrders: React.FC = () => {
   const { showToast } = useToast();
   const [orders, setOrders] = useState<Order[]>(() => StorageService.getOrders());
   const [statusFilter, setStatusFilter] = useState<'All' | 'Pending' | 'Delivered' | 'Cancelled'>('All');
-
-  // Filter orders related to this seller
-  const sellerId = user?.id?.startsWith('seller') ? user.id : 'seller-1';
+  
+  // OTP Verification input state mapped by orderId
+  const [otpInputs, setOtpInputs] = useState<Record<string, string>>({});
+  const [verifyingOrder, setVerifyingOrder] = useState<string | null>(null);
 
   const sellerOrders = useMemo(() => {
     return orders.filter(order => {
-      // In demo mode allow seller to manage all sample orders or ones with matching seller items
       if (statusFilter === 'Pending') {
-        return order.orderStatus !== 'Delivered' && order.orderStatus !== 'Cancelled';
+        return order.orderStatus !== 'Delivered' && order.orderStatus !== 'Cancelled' && order.orderStatus !== 'Rejected';
       }
       if (statusFilter === 'Delivered') return order.orderStatus === 'Delivered';
-      if (statusFilter === 'Cancelled') return order.orderStatus === 'Cancelled';
+      if (statusFilter === 'Cancelled') return order.orderStatus === 'Cancelled' || order.orderStatus === 'Rejected';
       return true;
     });
   }, [orders, statusFilter]);
@@ -46,26 +48,44 @@ export const SellerOrders: React.FC = () => {
     else if (currentStatus === 'Order Confirmed') nextStatus = 'Preparing';
     else if (currentStatus === 'Preparing') nextStatus = 'Ready for Pickup';
     else if (currentStatus === 'Ready for Pickup') nextStatus = 'Out for Delivery';
-    else if (currentStatus === 'Out for Delivery') nextStatus = 'Delivered';
     else return;
 
-    // If marked Delivered, allow confirming COD payment
-    const paymentStatus: PaymentStatus | undefined = nextStatus === 'Delivered' ? 'Paid' : undefined;
-
-    const updated = StorageService.updateOrderStatus(orderId, nextStatus, paymentStatus);
+    const updated = StorageService.updateOrderStatus(orderId, nextStatus);
     if (updated) {
       setOrders(StorageService.getOrders());
-      showToast(`Order status updated to "${nextStatus}"${nextStatus === 'Delivered' ? ' (COD marked Paid)' : ''}`, 'success');
+      showToast(`Order status updated to "${nextStatus}".`, 'success');
     }
   };
 
+  // OTP Verification for Out for Delivery -> Delivered (Requirement 7)
+  const handleVerifyOtp = (orderId: string) => {
+    const enteredOtp = otpInputs[orderId] || '';
+    if (!enteredOtp || enteredOtp.trim().length !== 6) {
+      showToast('Please enter the 6-digit delivery OTP given by the customer.', 'warning');
+      return;
+    }
+
+    setVerifyingOrder(orderId);
+    const result = StorageService.verifyDeliveryOtp(orderId, enteredOtp);
+
+    if (result.success) {
+      setOrders(StorageService.getOrders());
+      showToast(result.message, 'success');
+      // Clear input
+      setOtpInputs(prev => ({ ...prev, [orderId]: '' }));
+    } else {
+      showToast(result.message, 'error');
+    }
+    setVerifyingOrder(null);
+  };
+
   const handleCancelOrder = (orderId: string) => {
-    const reason = prompt('Please enter cancellation reason for the customer:');
-    if (reason) {
-      const updated = StorageService.updateOrderStatus(orderId, 'Cancelled', undefined, reason);
+    const reason = prompt('Please enter rejection/cancellation reason for the customer:');
+    if (reason && reason.trim()) {
+      const updated = StorageService.updateOrderStatus(orderId, 'Rejected', undefined, reason.trim());
       if (updated) {
         setOrders(StorageService.getOrders());
-        showToast('Order marked as Cancelled', 'info');
+        showToast('Order rejected. Food inventory restored.', 'info');
       }
     }
   };
@@ -78,10 +98,10 @@ export const SellerOrders: React.FC = () => {
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-brand-charcoal tracking-tight flex items-center gap-2">
             <ShoppingBag className="w-7 h-7 text-brand-green" />
-            <span>Kitchen Order Management</span>
+            <span>Kitchen Order Management & Delivery Verification</span>
           </h1>
           <p className="text-xs text-gray-500 mt-1">
-            Accept orders, transition kitchen prep stages, and confirm cash collection upon delivery.
+            Accept orders, transition kitchen stages, verify customer delivery OTPs, and confirm Cash on Delivery.
           </p>
         </div>
 
@@ -107,7 +127,8 @@ export const SellerOrders: React.FC = () => {
       {sellerOrders.length > 0 ? (
         <div className="space-y-6">
           {sellerOrders.map(order => {
-            const isTerminal = order.orderStatus === 'Delivered' || order.orderStatus === 'Cancelled';
+            const isTerminal = order.orderStatus === 'Delivered' || order.orderStatus === 'Cancelled' || order.orderStatus === 'Rejected';
+            const isOutForDelivery = order.orderStatus === 'Out for Delivery';
 
             return (
               <div
@@ -121,12 +142,18 @@ export const SellerOrders: React.FC = () => {
                       <span className="font-black text-lg text-brand-charcoal">
                         Order #{order.orderNumber}
                       </span>
-                      <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-brand-charcoal text-white">
+                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-extrabold ${
+                        order.orderStatus === 'Delivered'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : order.orderStatus === 'Out for Delivery'
+                            ? 'bg-amber-100 text-amber-900 border border-amber-300 animate-pulse'
+                            : 'bg-brand-charcoal text-white'
+                      }`}>
                         {order.orderStatus}
                       </span>
                     </div>
                     <p className="text-xs text-gray-400">
-                      Received at {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} on {new Date(order.createdAt).toLocaleDateString()}
+                      Placed at {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} on {new Date(order.createdAt).toLocaleDateString()}
                     </p>
                   </div>
 
@@ -135,7 +162,7 @@ export const SellerOrders: React.FC = () => {
                       ₹{order.finalTotal.toFixed(2)}
                     </span>
                     <p className="text-xs text-gray-500">
-                      Payment: <strong className={order.paymentStatus === 'Paid' ? 'text-emerald-700' : 'text-amber-700'}>COD {order.paymentStatus}</strong>
+                      Payment: <strong className={order.paymentStatus === 'Paid' ? 'text-emerald-700' : 'text-amber-700'}>COD ({order.paymentStatus})</strong>
                     </p>
                   </div>
                 </div>
@@ -143,7 +170,7 @@ export const SellerOrders: React.FC = () => {
                 {/* Items in this order */}
                 <div className="space-y-2">
                   <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">
-                    Dishes to Prepare:
+                    Dishes in this Order:
                   </span>
                   <div className="divide-y divide-gray-100 border border-gray-100 rounded-2xl p-2 bg-cream-50/50">
                     {order.items.map((item, idx) => (
@@ -182,6 +209,38 @@ export const SellerOrders: React.FC = () => {
                   </div>
                 </div>
 
+                {/* OTP Verification UI for Out for Delivery Stage (Strict Requirement 7) */}
+                {isOutForDelivery && (
+                  <div className="p-4 bg-amber-50 rounded-2xl border-2 border-amber-300 space-y-3">
+                    <div className="flex items-center gap-2 text-amber-900 font-extrabold text-xs">
+                      <KeyRound className="w-4 h-4 text-brand-orange" />
+                      <span>Mandatory Customer OTP Verification</span>
+                    </div>
+                    <p className="text-[11px] text-amber-800">
+                      Ask the customer for their unique 6-digit delivery OTP shown on their screen, collect cash payment, and verify below to complete delivery:
+                    </p>
+
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                      <input
+                        type="text"
+                        maxLength={6}
+                        placeholder="Enter 6-digit OTP"
+                        value={otpInputs[order.id] || ''}
+                        onChange={(e) => setOtpInputs({ ...otpInputs, [order.id]: e.target.value.replace(/\D/g, '') })}
+                        className="px-3.5 py-2 rounded-xl bg-white border border-amber-300 text-xs font-black tracking-widest text-center text-brand-charcoal focus:outline-none focus:ring-2 focus:ring-brand-orange w-full sm:w-48"
+                      />
+                      <button
+                        onClick={() => handleVerifyOtp(order.id)}
+                        disabled={verifyingOrder === order.id}
+                        className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 shadow-sm transition-all"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>Verify OTP & Mark Delivered</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Action Buttons: Status Advancement */}
                 {!isTerminal ? (
                   <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-gray-100">
@@ -189,22 +248,23 @@ export const SellerOrders: React.FC = () => {
                       onClick={() => handleCancelOrder(order.id)}
                       className="px-3.5 py-2 text-xs font-bold text-red-600 hover:bg-red-50 rounded-xl transition-colors"
                     >
-                      Reject / Cancel
+                      Reject Order
                     </button>
 
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleAdvanceStatus(order.id, order.orderStatus)}
-                        className="px-5 py-2.5 bg-brand-green hover:bg-brand-green-hover text-white rounded-xl text-xs font-extrabold shadow-sm flex items-center gap-2 transition-all hover:scale-102"
-                      >
-                        {order.orderStatus === 'Order Placed' && <span>Confirm Order</span>}
-                        {order.orderStatus === 'Order Confirmed' && <span>Mark as Preparing</span>}
-                        {order.orderStatus === 'Preparing' && <span>Mark Ready for Pickup</span>}
-                        {order.orderStatus === 'Ready for Pickup' && <span>Dispatch (Out for Delivery)</span>}
-                        {order.orderStatus === 'Out for Delivery' && <span>Mark Delivered & Collect COD</span>}
-                        <ArrowRight className="w-4 h-4" />
-                      </button>
-                    </div>
+                    {!isOutForDelivery && (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleAdvanceStatus(order.id, order.orderStatus)}
+                          className="px-5 py-2.5 bg-brand-green hover:bg-brand-green-hover text-white rounded-xl text-xs font-extrabold shadow-sm flex items-center gap-2 transition-all hover:scale-102"
+                        >
+                          {order.orderStatus === 'Order Placed' && <span>Confirm Order</span>}
+                          {order.orderStatus === 'Order Confirmed' && <span>Mark as Preparing</span>}
+                          {order.orderStatus === 'Preparing' && <span>Mark Ready for Pickup</span>}
+                          {order.orderStatus === 'Ready for Pickup' && <span>Dispatch (Out for Delivery)</span>}
+                          <ArrowRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="pt-2 text-right">
@@ -213,7 +273,7 @@ export const SellerOrders: React.FC = () => {
                         ? 'bg-emerald-100 text-emerald-800'
                         : 'bg-red-100 text-red-800'
                     }`}>
-                      {order.orderStatus === 'Delivered' ? '✓ Order Fulfilled & Paid' : '✕ Order Cancelled'}
+                      {order.orderStatus === 'Delivered' ? '✓ Order Fulfilled via OTP & Cash Collected' : `✕ Order ${order.orderStatus}`}
                     </span>
                   </div>
                 )}

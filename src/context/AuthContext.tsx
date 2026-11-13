@@ -1,18 +1,23 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { UserProfile, UserRole } from '../types';
 import { StorageService } from '../services/storage';
-import { isSupabaseConfigured } from '../services/supabase';
-import { INITIAL_USERS } from '../data/sampleCatalog';
+import { api } from '../services/api';
 
 interface AuthContextType {
   user: UserProfile | null;
-  role: UserRole;
+  role: UserRole | 'guest';
   isAuthenticated: boolean;
-  isSupabase: boolean;
-  login: (email: string, password?: string, intendedRole?: UserRole) => Promise<{ success: boolean; error?: string }>;
-  signup: (data: { name: string; email: string; phone: string; role: UserRole; businessName?: string; businessAddress?: string }) => Promise<{ success: boolean; error?: string }>;
+  login: (email: string, password: string) => Promise<{ success: boolean; user?: UserProfile; error?: string }>;
+  signup: (data: { 
+    name: string; 
+    email: string; 
+    phone: string; 
+    password: string; 
+    role: UserRole; 
+    businessName?: string; 
+    businessAddress?: string 
+  }) => Promise<{ success: boolean; user?: UserProfile; error?: string }>;
   logout: () => void;
-  switchRole: (role: UserRole) => void;
   updateProfile: (data: Partial<UserProfile>) => void;
 }
 
@@ -20,7 +25,6 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<UserProfile | null>(() => StorageService.getCurrentUser());
-  const isSupabase = isSupabaseConfigured();
 
   useEffect(() => {
     if (user) {
@@ -30,82 +34,169 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [user]);
 
-  const login = async (email: string, _password?: string, intendedRole?: UserRole) => {
-    // Check against local stored users
-    const users = StorageService.getUsers();
-    let found = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+  // Synchronize on mount if JWT token exists
+  useEffect(() => {
+    const token = localStorage.getItem('mealmate_jwt_token');
+    if (token && user) {
+      api.getMe().then(res => {
+        if (res.success && res.user) {
+          setUser(prev => prev ? { ...prev, name: res.user.name, email: res.user.email, role: res.user.role } : null);
+        }
+      }).catch(() => {
+        // Keep existing stored profile if offline
+      });
+    }
+  }, []);
 
-    // If not found by exact email, check if intendedRole matched default demo user
-    if (!found && intendedRole) {
-      found = users.find(u => u.role === intendedRole);
+  const login = async (email: string, password: string) => {
+    if (!email || !email.trim() || !password) {
+      return { success: false, error: 'Please enter both email and password.' };
     }
 
-    if (found) {
-      if (!found.isActive) {
-        return { success: false, error: 'This account has been deactivated. Contact support.' };
+    const cleanEmail = email.trim().toLowerCase();
+
+    try {
+      // 1. Authenticate with backend REST API (MySQL 8.0)
+      const apiRes = await api.login(cleanEmail, password);
+      
+      if (apiRes.success && apiRes.user) {
+        if (apiRes.token) {
+          localStorage.setItem('mealmate_jwt_token', apiRes.token);
+        }
+        const profile: UserProfile = {
+          id: apiRes.user.id,
+          name: apiRes.user.name,
+          email: apiRes.user.email,
+          phone: apiRes.user.phone,
+          role: apiRes.user.role, // strictly preserved from database!
+          isActive: apiRes.user.accountStatus === 'active',
+          avatarUrl: apiRes.user.avatarUrl,
+          businessName: apiRes.user.businessName,
+          businessAddress: apiRes.user.businessAddress,
+          rewardPoints: apiRes.user.rewardPoints || 0,
+          createdAt: new Date().toISOString()
+        };
+        setUser(profile);
+        StorageService.updateUser(profile);
+        return { success: true, user: profile };
       }
-      setUser(found);
-      return { success: true };
+
+      // If backend returned a clear validation error (not found, incorrect password, deactivated, etc.)
+      if (apiRes.error) {
+        return { success: false, error: apiRes.error };
+      }
+    } catch {
+      // API server offline or network unavailable: execute local verified authentication
     }
 
-    // Auto-create demo user if new email
-    const newUser: UserProfile = {
-      id: `user-${Date.now()}`,
-      name: email.split('@')[0].toUpperCase(),
-      email,
-      phone: '+91 98765 00000',
-      role: intendedRole || 'customer',
-      isActive: true,
-      createdAt: new Date().toISOString()
-    };
-    StorageService.updateUser(newUser);
-    setUser(newUser);
-    return { success: true };
+    // 2. Local Fallback Authentication
+    const users = StorageService.getUsers();
+    const found = users.find(u => u.email.toLowerCase() === cleanEmail);
+
+    // If the email does not exist, show: "Account not found. Please register first."
+    // Strictly NO account auto-creation and NO role-substitution during login!
+    if (!found) {
+      return { success: false, error: 'Account not found. Please register first.' };
+    }
+
+    if (!found.isActive) {
+      return { success: false, error: 'This account has been deactivated. Please contact campus admin.' };
+    }
+
+    // Verify password against stored password
+    if (found.password && found.password !== password) {
+      return { success: false, error: 'Incorrect password. Please try again.' };
+    }
+
+    setUser(found);
+    return { success: true, user: found };
   };
 
   const signup = async (data: { 
     name: string; 
     email: string; 
     phone: string; 
+    password: string;
     role: UserRole; 
-    businessName?: string;
-    businessAddress?: string;
+    businessName?: string; 
+    businessAddress?: string; 
   }) => {
+    const cleanEmail = data.email.trim().toLowerCase();
+
+    try {
+      // 1. Register with backend REST API
+      const apiRes = await api.register({
+        name: data.name.trim(),
+        email: cleanEmail,
+        phone: data.phone.trim(),
+        password: data.password,
+        role: data.role,
+        businessName: data.businessName?.trim(),
+        businessAddress: data.businessAddress?.trim()
+      });
+
+      if (apiRes.success && apiRes.user) {
+        if (apiRes.token) {
+          localStorage.setItem('mealmate_jwt_token', apiRes.token);
+        }
+        const profile: UserProfile = {
+          id: apiRes.user.id,
+          name: apiRes.user.name,
+          email: apiRes.user.email,
+          phone: apiRes.user.phone,
+          password: data.password,
+          role: apiRes.user.role,
+          isActive: true,
+          businessName: data.businessName,
+          businessAddress: data.businessAddress,
+          sellerVerificationStatus: data.role === 'seller' ? 'Verified' : undefined,
+          rewardPoints: 20,
+          createdAt: new Date().toISOString()
+        };
+        setUser(profile);
+        StorageService.updateUser(profile);
+        return { success: true, user: profile };
+      }
+
+      if (apiRes.error) {
+        return { success: false, error: apiRes.error };
+      }
+    } catch {
+      // API server offline: execute local storage registration
+    }
+
+    // 2. Fallback local storage registration
     const users = StorageService.getUsers();
-    if (users.some(u => u.email.toLowerCase() === data.email.toLowerCase())) {
-      return { success: false, error: 'An account with this email already exists.' };
+    if (users.some(u => u.email.toLowerCase() === cleanEmail)) {
+      return { success: false, error: 'An account with this email already exists. Please sign in.' };
     }
 
     const newUser: UserProfile = {
       id: `user-${Date.now()}`,
-      name: data.name,
-      email: data.email,
-      phone: data.phone,
+      name: data.name.trim(),
+      email: cleanEmail,
+      phone: data.phone.trim(),
+      password: data.password,
       role: data.role,
-      businessName: data.businessName,
-      businessAddress: data.businessAddress,
-      sellerVerificationStatus: data.role === 'seller' ? 'Pending' : undefined,
+      businessName: data.businessName?.trim(),
+      businessAddress: data.businessAddress?.trim(),
+      sellerVerificationStatus: data.role === 'seller' ? 'Verified' : undefined,
       isActive: true,
+      rewardPoints: 20,
       createdAt: new Date().toISOString()
     };
 
     StorageService.updateUser(newUser);
     setUser(newUser);
-    return { success: true };
+    return { success: true, user: newUser };
   };
 
   const logout = () => {
     setUser(null);
     StorageService.clearCurrentUser();
-  };
-
-  const switchRole = (newRole: UserRole) => {
-    const users = StorageService.getUsers();
-    let target = users.find(u => u.role === newRole);
-    if (!target) {
-      target = INITIAL_USERS.find(u => u.role === newRole) || INITIAL_USERS[0];
-    }
-    setUser(target);
+    try {
+      localStorage.removeItem('mealmate_jwt_token');
+    } catch {}
   };
 
   const updateProfile = (data: Partial<UserProfile>) => {
@@ -119,13 +210,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     <AuthContext.Provider
       value={{
         user,
-        role: user ? user.role : 'customer',
+        role: user ? user.role : 'guest',
         isAuthenticated: !!user,
-        isSupabase,
         login,
         signup,
         logout,
-        switchRole,
         updateProfile,
       }}
     >

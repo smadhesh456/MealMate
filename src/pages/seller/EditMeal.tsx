@@ -16,7 +16,7 @@ export const EditMeal: React.FC = () => {
   const [description, setDescription] = useState(meal?.description || '');
   const [image, setImage] = useState(meal?.image || '');
   const [module, setModule] = useState<ModuleType>(meal?.module || 'HomePlate');
-  const [category, setCategory] = useState<FoodCategory>(meal?.category || 'Lunch');
+  const [category, setCategory] = useState<FoodCategory>((meal?.category as FoodCategory) || 'Lunch');
   const [price, setPrice] = useState<number>(meal?.price || 50);
   const [originalPrice, setOriginalPrice] = useState<number>(meal?.originalPrice || 80);
   const [stockQuantity, setStockQuantity] = useState<number>(meal?.stockQuantity || 10);

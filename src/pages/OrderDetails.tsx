@@ -1,8 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { StorageService } from '../services/storage';
 import { OrderTimeline } from '../components/common/OrderTimeline';
 import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/AuthContext';
 import { 
   ArrowLeft, 
   MapPin, 
@@ -14,7 +15,9 @@ import {
   MessageSquare,
   Compass,
   Gift,
-  Sparkles
+  Sparkles,
+  KeyRound,
+  ShieldCheck
 } from 'lucide-react';
 import type { Order } from '../types';
 
@@ -24,6 +27,7 @@ export const OrderDetails: React.FC = () => {
     return StorageService.getOrderById(orderId || '');
   });
   const { showToast } = useToast();
+  const { user } = useAuth();
 
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
@@ -43,33 +47,48 @@ export const OrderDetails: React.FC = () => {
     );
   }
 
+  if (user && user.role === 'customer' && order.customerId !== user.id) {
+    return (
+      <div className="max-w-xl mx-auto px-4 py-16 text-center space-y-4">
+        <h2 className="text-2xl font-bold text-brand-charcoal">Access Denied</h2>
+        <p className="text-xs text-gray-500">You are not authorized to view this customer order.</p>
+        <Link to="/orders" className="px-5 py-2.5 bg-brand-orange text-white rounded-xl text-xs font-bold inline-block">
+          View My Orders
+        </Link>
+      </div>
+    );
+  }
+
+  // Customer cancellation is allowed ONLY before seller confirmation (Requirement 10)
+  const isCancellable = order.orderStatus === 'Order Placed';
+
   const handleCancelOrder = () => {
     if (!cancelReason.trim()) {
-      showToast('Please provide a reason for cancellation', 'warning');
+      showToast('Please provide a reason for cancellation.', 'warning');
       return;
     }
 
-    const updated = StorageService.updateOrderStatus(order.id, 'Cancelled', undefined, cancelReason);
+    const updated = StorageService.updateOrderStatus(order.id, 'Cancelled', undefined, cancelReason.trim());
     if (updated) {
       setOrder({ ...updated });
       setShowCancelModal(false);
-      showToast('Order has been cancelled.', 'info');
+      showToast('Order has been cancelled. Reserved inventory was restored.', 'info');
     }
   };
 
   const handleFileComplaint = (e: React.FormEvent) => {
     e.preventDefault();
     if (!complaintSubject.trim() || !complaintDesc.trim()) {
-      showToast('Please fill all complaint fields', 'warning');
+      showToast('Please fill all complaint fields.', 'warning');
       return;
     }
 
-    StorageService.addComplaint({
+    StorageService.saveComplaint({
       id: `comp-${Date.now()}`,
       orderId: order.orderNumber,
       customerId: order.customerId,
       customerName: order.customerName,
-      customerEmail: 'rahul.student@college.edu',
+      customerEmail: 'madesh@gmail.com',
       subject: complaintSubject.trim(),
       description: complaintDesc.trim(),
       status: 'Pending',
@@ -106,6 +125,30 @@ export const OrderDetails: React.FC = () => {
         </div>
       </div>
 
+      {/* Unique Delivery OTP Card (Requirement 7) */}
+      {order.deliveryOtp && order.orderStatus !== 'Cancelled' && order.orderStatus !== 'Rejected' && (
+        <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-brand-orange rounded-3xl p-6 text-white shadow-card flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/20 text-white text-[11px] font-bold">
+              <KeyRound className="w-3.5 h-3.5" />
+              <span>Unique Delivery Verification OTP</span>
+            </div>
+            <h2 className="text-sm font-semibold opacity-95">
+              Share this 6-digit OTP with your delivery person upon physical arrival:
+            </h2>
+            <p className="text-[11px] opacity-80">
+              {order.orderStatus === 'Delivered' ? '✓ Verified upon delivery' : 'Keep this code handy until food is delivered'}
+            </p>
+          </div>
+
+          <div className="px-6 py-3 bg-white text-brand-charcoal rounded-2xl shadow-inner text-center self-stretch sm:self-auto">
+            <span className="text-3xl font-black font-mono tracking-widest text-brand-orange">
+              {order.deliveryOtp}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Main Order Card */}
       <div className="bg-white rounded-3xl p-6 sm:p-8 border border-amber-100 shadow-card space-y-6">
         
@@ -116,7 +159,13 @@ export const OrderDetails: React.FC = () => {
               <h1 className="text-xl sm:text-2xl font-black text-brand-charcoal">
                 Order #{order.orderNumber}
               </h1>
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-brand-charcoal text-white">
+              <span className={`px-2.5 py-0.5 rounded-full text-xs font-extrabold ${
+                order.orderStatus === 'Delivered'
+                  ? 'bg-emerald-100 text-emerald-800'
+                  : order.orderStatus === 'Cancelled' || order.orderStatus === 'Rejected'
+                    ? 'bg-red-100 text-red-800'
+                    : 'bg-brand-charcoal text-white'
+              }`}>
                 {order.orderStatus}
               </span>
             </div>
@@ -135,11 +184,11 @@ export const OrderDetails: React.FC = () => {
           </div>
         </div>
 
-        {/* Manual Order Tracking Timeline */}
+        {/* Live Order Tracking Timeline */}
         <div className="py-2">
           <h2 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-4 flex items-center gap-1.5">
             <Compass className="w-4 h-4 text-brand-green" />
-            <span>Live Order Progress Timeline</span>
+            <span>Order Lifecycle Timeline</span>
           </h2>
           <OrderTimeline
             currentStatus={order.orderStatus}
@@ -163,7 +212,7 @@ export const OrderDetails: React.FC = () => {
                   </span>
                   <div>
                     <h4 className="font-bold text-brand-charcoal text-sm">{item.name}</h4>
-                    <p className="text-[11px] text-gray-400">Cook: {item.sellerName} • {item.module}</p>
+                    <p className="text-[11px] text-gray-400">Kitchen: {item.sellerName} • {item.module}</p>
                   </div>
                 </div>
 
@@ -176,62 +225,58 @@ export const OrderDetails: React.FC = () => {
             ))}
           </div>
 
-          {/* Itemized Bill & Rewards Summary */}
+          {/* Itemized Bill Breakdown */}
           <div className="p-4 bg-cream-50 rounded-2xl border border-amber-100 space-y-2 text-xs text-gray-600">
             <div className="flex justify-between">
               <span>Item Subtotal</span>
               <span className="font-semibold text-brand-charcoal">₹{order.itemTotal.toFixed(2)}</span>
             </div>
+
             {order.savingsTotal > 0 && (
               <div className="flex justify-between text-brand-green font-semibold">
                 <span>SaveMyMeal Surplus Savings</span>
                 <span>−₹{order.savingsTotal.toFixed(2)}</span>
               </div>
             )}
+
             <div className="flex justify-between">
               <span>Delivery Fee</span>
-              <span>{order.deliveryFee === 0 ? 'FREE (₹0.00)' : `₹${order.deliveryFee.toFixed(2)}`}</span>
+              <span className="font-semibold text-brand-charcoal">
+                {order.deliveryFee === 0 ? 'FREE (₹0.00)' : `₹${order.deliveryFee.toFixed(2)}`}
+              </span>
             </div>
+
             <div className="flex justify-between">
               <span>Platform Fee</span>
-              <span>₹{order.platformFee.toFixed(2)}</span>
+              <span className="font-semibold text-brand-charcoal">₹{order.platformFee.toFixed(2)}</span>
             </div>
+
             {order.couponDiscount > 0 && (
               <div className="flex justify-between text-brand-green font-bold">
                 <span>Coupon Discount ({order.couponCode || 'APPLIED'})</span>
                 <span>−₹{order.couponDiscount.toFixed(2)}</span>
               </div>
             )}
+
             {order.rewardDiscount !== undefined && order.rewardDiscount > 0 && (
-              <div className="flex justify-between text-purple-700 font-extrabold bg-purple-100/70 p-2 rounded-xl border border-purple-200">
-                <span className="flex items-center gap-1.5">
-                  <Gift className="w-3.5 h-3.5 text-purple-600" />
-                  <span>Loyalty Reward (100 Pts = 20% OFF Redeemed)</span>
-                </span>
+              <div className="flex justify-between text-purple-700 font-extrabold">
+                <span>Loyalty Reward (20% OFF)</span>
                 <span>−₹{order.rewardDiscount.toFixed(2)}</span>
               </div>
             )}
-            {order.pointsEarned !== undefined && order.pointsEarned > 0 && (
-              <div className="flex justify-between text-amber-900 font-bold bg-amber-100/70 p-2 rounded-xl border border-amber-200">
-                <span className="flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                  <span>5-Day Milestone Progress</span>
-                </span>
-                <span>+{order.pointsEarned} Pts Earned for this Order Date</span>
-              </div>
-            )}
-            <div className="pt-2 border-t border-gray-200 flex justify-between items-baseline font-bold">
-              <span className="text-brand-charcoal">Total Amount (COD)</span>
-              <span className="text-base text-brand-charcoal font-black">₹{order.finalTotal.toFixed(2)}</span>
+
+            <div className="pt-2 border-t border-gray-200 flex justify-between font-extrabold text-sm text-brand-charcoal">
+              <span>Final Total (COD)</span>
+              <span>₹{order.finalTotal.toFixed(2)}</span>
             </div>
           </div>
         </div>
 
-        {/* Customer & Address Details */}
-        <div className="bg-cream-50/70 p-5 rounded-2xl grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+        {/* Delivery Details */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs bg-cream-50 p-4 rounded-2xl">
           <div>
             <span className="font-bold text-gray-400 uppercase text-[10px] block mb-1">
-              Customer Contact
+              Customer Details
             </span>
             <p className="font-bold text-brand-charcoal">{order.customerName}</p>
             <p className="text-gray-600">{order.customerPhone}</p>
@@ -239,7 +284,7 @@ export const OrderDetails: React.FC = () => {
 
           <div>
             <span className="font-bold text-gray-400 uppercase text-[10px] block mb-1">
-              Delivery Address
+              Delivery Destination
             </span>
             <p className="text-gray-700">
               {order.deliveryAddress.addressLine1}, {order.deliveryAddress.city} - {order.deliveryAddress.pincode}
@@ -247,17 +292,22 @@ export const OrderDetails: React.FC = () => {
           </div>
         </div>
 
-        {/* Actions Row */}
+        {/* Cancellation Controls (Requirement 10) */}
         <div className="pt-2 flex flex-wrap items-center justify-between gap-4">
           <div>
-            {order.orderStatus === 'Order Placed' && (
+            {isCancellable ? (
               <button
                 onClick={() => setShowCancelModal(true)}
                 className="px-4 py-2 rounded-xl text-xs font-bold text-red-600 hover:bg-red-50 border border-red-200 transition-colors"
               >
                 Cancel Order
               </button>
-            )}
+            ) : order.orderStatus !== 'Cancelled' && order.orderStatus !== 'Rejected' && order.orderStatus !== 'Delivered' ? (
+              <div className="text-xs text-gray-400 flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                <span>Order is being prepared/dispatched. Cancellation locked.</span>
+              </div>
+            ) : null}
           </div>
 
           <button
@@ -265,7 +315,7 @@ export const OrderDetails: React.FC = () => {
             className="text-xs font-semibold text-gray-500 hover:text-brand-orange flex items-center gap-1.5"
           >
             <MessageSquare className="w-3.5 h-3.5" />
-            <span>Need Help or File a Complaint?</span>
+            <span>Need Help or File a Dispute?</span>
           </button>
         </div>
 
@@ -279,14 +329,14 @@ export const OrderDetails: React.FC = () => {
               Confirm Order Cancellation
             </h3>
             <p className="text-xs text-gray-500">
-              Please let us know why you wish to cancel this order:
+              Please tell us why you want to cancel this order:
             </p>
             <textarea
               rows={3}
               value={cancelReason}
               onChange={(e) => setCancelReason(e.target.value)}
-              placeholder="e.g. Placed duplicate order, changed mind..."
-              className="w-full p-2.5 bg-cream-50 border border-amber-200 rounded-xl text-xs text-brand-charcoal"
+              placeholder="e.g. Changed meal preference, ordered duplicate..."
+              className="w-full p-2.5 bg-cream-50 border border-amber-200 rounded-xl text-xs text-brand-charcoal focus:outline-none"
             />
             <div className="flex justify-end gap-2 pt-2">
               <button
@@ -297,7 +347,7 @@ export const OrderDetails: React.FC = () => {
               </button>
               <button
                 onClick={handleCancelOrder}
-                className="px-4 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl"
+                className="px-4 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-sm"
               >
                 Confirm Cancellation
               </button>
@@ -306,53 +356,48 @@ export const OrderDetails: React.FC = () => {
         </div>
       )}
 
-      {/* Complaint Modal */}
+      {/* Complaint / Dispute Modal */}
       {showComplaintModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-card space-y-4 animate-in fade-in">
+          <form onSubmit={handleFileComplaint} className="bg-white rounded-3xl p-6 max-w-md w-full shadow-card space-y-4 animate-in fade-in">
             <h3 className="text-base font-bold text-brand-charcoal">
-              File a Complaint for #{order.orderNumber}
+              Submit Dispute or Feedback
             </h3>
-            <form onSubmit={handleFileComplaint} className="space-y-3">
-              <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1">Subject</label>
-                <input
-                  type="text"
-                  value={complaintSubject}
-                  onChange={(e) => setComplaintSubject(e.target.value)}
-                  placeholder="e.g. Food was cold, missing item..."
-                  className="w-full p-2.5 bg-cream-50 border border-amber-200 rounded-xl text-xs"
-                  required
-                />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-gray-600 block mb-1">Details</label>
-                <textarea
-                  rows={3}
-                  value={complaintDesc}
-                  onChange={(e) => setComplaintDesc(e.target.value)}
-                  placeholder="Describe what went wrong so campus administrators can assist..."
-                  className="w-full p-2.5 bg-cream-50 border border-amber-200 rounded-xl text-xs"
-                  required
-                />
-              </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowComplaintModal(false)}
-                  className="px-4 py-2 text-xs font-bold text-gray-600 hover:bg-gray-100 rounded-xl"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 text-xs font-bold text-white bg-brand-orange hover:bg-brand-orange-hover rounded-xl"
-                >
-                  Submit Complaint
-                </button>
-              </div>
-            </form>
-          </div>
+            <p className="text-xs text-gray-500">
+              Campus admin review all feedback to ensure highest food quality and delivery accuracy.
+            </p>
+            <input
+              type="text"
+              value={complaintSubject}
+              onChange={(e) => setComplaintSubject(e.target.value)}
+              placeholder="Subject (e.g. Delayed rider, packaging issue)"
+              className="w-full p-2.5 bg-cream-50 border border-amber-200 rounded-xl text-xs text-brand-charcoal"
+              required
+            />
+            <textarea
+              rows={3}
+              value={complaintDesc}
+              onChange={(e) => setComplaintDesc(e.target.value)}
+              placeholder="Describe the issue..."
+              className="w-full p-2.5 bg-cream-50 border border-amber-200 rounded-xl text-xs text-brand-charcoal"
+              required
+            />
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowComplaintModal(false)}
+                className="px-4 py-2 text-xs font-bold text-gray-600 hover:bg-gray-100 rounded-xl"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 text-xs font-bold text-white bg-brand-orange hover:bg-brand-orange-hover rounded-xl shadow-sm"
+              >
+                Submit Dispute
+              </button>
+            </div>
+          </form>
         </div>
       )}
 

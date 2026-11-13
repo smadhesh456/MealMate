@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { 
   ShoppingBag, 
   Trash2, 
@@ -39,10 +40,20 @@ export const Cart: React.FC = () => {
   } = useCart();
 
   const { user } = useAuth();
+  const { showToast } = useToast();
   const [rewardStatus, setRewardStatus] = useState(() => RewardsService.getRewardStatus(user?.id));
   const [inputCoupon, setInputCoupon] = useState('');
   const [couponError, setCouponError] = useState('');
   const navigate = useNavigate();
+
+  const handleProceedToCheckout = () => {
+    if (!user) {
+      showToast('Please sign in or create an account to order food.', 'warning');
+      navigate('/login?redirect=/checkout');
+      return;
+    }
+    navigate('/checkout');
+  };
 
   const handleApplyCoupon = (e: React.FormEvent) => {
     e.preventDefault();
@@ -561,7 +572,7 @@ export const Cart: React.FC = () => {
 
             {/* Proceed to Checkout Button */}
             <button
-              onClick={() => navigate('/checkout')}
+              onClick={handleProceedToCheckout}
               className="w-full py-4 rounded-2xl bg-brand-orange hover:bg-brand-orange-hover text-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-elevated transition-all hover:scale-102"
             >
               <span>PROCEED TO CHECKOUT</span>

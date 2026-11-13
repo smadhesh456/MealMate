@@ -10,11 +10,12 @@ import {
   ArrowUpDown, 
   Info, 
   ShoppingBag,
-  SlidersHorizontal,
-  Plus
+  Plus,
+  UtensilsCrossed
 } from 'lucide-react';
 import { FEE_CONFIG, calculateBill } from '../utils/pricing';
 import { useCart } from '../context/CartContext';
+import { useToast } from '../context/ToastContext';
 
 export const BudgetBite: React.FC = () => {
   const [selectedBudget, setSelectedBudget] = useState<number>(100);
@@ -26,9 +27,10 @@ export const BudgetBite: React.FC = () => {
   const [categoryFilter, setCategoryFilter] = useState<string>('All');
 
   const { addToCart } = useCart();
+  const { showToast } = useToast();
   const allMeals = useMemo(() => StorageService.getMeals(), []);
 
-  // Quick preset budgets
+  // Preset budgets: ₹50, ₹80, ₹100, ₹150 (Requirement 4)
   const budgetPresets = [50, 80, 100, 150];
 
   const handleSelectPreset = (b: number) => {
@@ -46,30 +48,29 @@ export const BudgetBite: React.FC = () => {
     }
   };
 
-  // Helper to calculate total cost for 1 portion with configured platform & delivery fees
+  // Helper to calculate total payable amount for 1 portion with delivery and platform fees
   const getSimulatedTotal = (item: FoodItem) => {
     const singleCartItem = [{ foodItem: item, quantity: 1 }];
     const bill = calculateBill(singleCartItem);
     return bill.finalTotal;
   };
 
-  // Filter and sort items
+  // Filter and sort items strictly according to budget and diet
   const processedMeals = useMemo(() => {
     return allMeals.filter(meal => {
-      // Diet filter
+      // 1. Diet Filter (Requirement 4: Vegetarian, Non-Vegetarian, All)
       if (dietFilter === 'Veg' && !meal.isVeg) return false;
       if (dietFilter === 'Non-Veg' && meal.isVeg) return false;
 
-      // Category filter
+      // 2. Category Filter
       if (categoryFilter !== 'All' && meal.category !== categoryFilter) return false;
 
-      // Budget check logic:
+      // 3. Strict Budget Calculation
       if (includeFeesInBudget) {
-        // Must fit budget AFTER accounting for delivery fee + platform fee
-        const totalWithFees = getSimulatedTotal(meal);
-        return totalWithFees <= selectedBudget;
+        // Guaranteed total payable amount including delivery (₹25) and platform fee (₹5)
+        const totalPayable = getSimulatedTotal(meal);
+        return totalPayable <= selectedBudget;
       } else {
-        // Fits item menu price
         return meal.price <= selectedBudget;
       }
     }).sort((a, b) => {
@@ -79,24 +80,21 @@ export const BudgetBite: React.FC = () => {
     });
   }, [allMeals, selectedBudget, includeFeesInBudget, sortBy, dietFilter, categoryFilter]);
 
-  // Meals where item price is under budget, but total with fees exceeds budget
-  const deceptiveItems = useMemo(() => {
-    if (!includeFeesInBudget) return [];
-    return allMeals.filter(meal => {
-      return meal.price <= selectedBudget && getSimulatedTotal(meal) > selectedBudget;
-    });
-  }, [allMeals, selectedBudget, includeFeesInBudget]);
-
-  // Affordable combination suggestions (e.g. combo of 2 items that total <= selectedBudget)
+  // Suggested affordable meal combinations
   const affordableCombos = useMemo(() => {
     const combinations: { item1: FoodItem; item2: FoodItem; total: number; savings: number }[] = [];
-    if (selectedBudget < 100) return combinations;
+    if (selectedBudget < 80) return combinations;
 
     const available = allMeals.filter(m => m.isAvailable && m.stockQuantity > 0);
     for (let i = 0; i < available.length; i++) {
       for (let j = i + 1; j < available.length; j++) {
         const item1 = available[i];
         const item2 = available[j];
+
+        // Apply diet filter to combos if selected
+        if (dietFilter === 'Veg' && (!item1.isVeg || !item2.isVeg)) continue;
+        if (dietFilter === 'Non-Veg' && (item1.isVeg && item2.isVeg)) continue;
+
         const combinedBill = calculateBill([
           { foodItem: item1, quantity: 1 },
           { foodItem: item2, quantity: 1 }
@@ -112,8 +110,14 @@ export const BudgetBite: React.FC = () => {
         }
       }
     }
-    return combinations.slice(0, 3); // show top 3 suggestions
-  }, [allMeals, selectedBudget]);
+    return combinations.slice(0, 3);
+  }, [allMeals, selectedBudget, dietFilter]);
+
+  const handleAddComboToCart = (item1: FoodItem, item2: FoodItem) => {
+    addToCart(item1);
+    addToCart(item2);
+    showToast(`Added combo "${item1.name} + ${item2.name}" to cart!`, 'success');
+  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10">
@@ -129,14 +133,15 @@ export const BudgetBite: React.FC = () => {
             Discover Great Food That Truly Fits Your Budget
           </h1>
           <p className="text-amber-100 text-xs sm:text-sm leading-relaxed">
-            Never be misled by checkout fees. We factor in food prices, standard delivery (₹{FEE_CONFIG.DELIVERY_FEE_BASE}), and platform fee (₹{FEE_CONFIG.PLATFORM_FEE}) so your wallet is never surprised!
+            Never be surprised by checkout fees. We factor in food prices, standard delivery (₹{FEE_CONFIG.DELIVERY_FEE_BASE}), and platform fee (₹{FEE_CONFIG.PLATFORM_FEE}) so your final bill never exceeds your budget! Orders above ₹300 receive free delivery.
           </p>
         </div>
       </div>
 
       {/* Interactive Budget Selector Section */}
-      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-amber-200/80 shadow-soft space-y-6">
+      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-amber-200 shadow-soft space-y-6">
         
+        {/* Step 1: Choose Budget */}
         <div>
           <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">
             Step 1: Choose Your Spending Budget
@@ -163,7 +168,7 @@ export const BudgetBite: React.FC = () => {
               <span className="text-xs font-bold text-gray-400 pl-2">₹</span>
               <input
                 type="number"
-                min="30"
+                min="20"
                 max="500"
                 value={customBudgetValue}
                 onChange={(e) => handleCustomBudgetChange(e.target.value)}
@@ -175,7 +180,7 @@ export const BudgetBite: React.FC = () => {
         </div>
 
         {/* Step 2: Honest Fee Calculation Toggle */}
-        <div className="pt-4 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-cream-50/60 p-4 rounded-2xl">
+        <div className="pt-4 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-cream-50/70 p-4 rounded-2xl">
           <div className="flex items-start gap-3">
             <div className="p-2 bg-amber-100 text-amber-800 rounded-xl mt-0.5">
               <Info className="w-4 h-4" />
@@ -199,28 +204,50 @@ export const BudgetBite: React.FC = () => {
             />
             <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-orange"></div>
             <span className="ml-2 text-xs font-semibold text-gray-700">
-              {includeFeesInBudget ? 'Include Fees' : 'Item Price Only'}
+              {includeFeesInBudget ? 'Include Fees (Strict)' : 'Menu Price Only'}
             </span>
           </label>
         </div>
 
-        {/* Step 3: Dietary & Category Toolbar */}
+        {/* Step 3: Food Filters (Requirement 4: All Foods, Vegetarian, Non-Vegetarian) */}
         <div className="pt-2 flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-bold text-gray-400">Diet:</span>
-            {(['All', 'Veg', 'Non-Veg'] as const).map(d => (
-              <button
-                key={d}
-                onClick={() => setDietFilter(d)}
-                className={`px-3 py-1 rounded-xl text-xs font-bold transition-all ${
-                  dietFilter === d
-                    ? 'bg-brand-charcoal text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                {d}
-              </button>
-            ))}
+            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider mr-1">Food Filter:</span>
+            
+            <button
+              onClick={() => setDietFilter('All')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                dietFilter === 'All'
+                  ? 'bg-brand-charcoal text-white shadow-sm'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              All Foods
+            </button>
+
+            <button
+              onClick={() => setDietFilter('Veg')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                dietFilter === 'Veg'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'bg-gray-100 text-emerald-800 hover:bg-emerald-50'
+              }`}
+            >
+              <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+              Vegetarian
+            </button>
+
+            <button
+              onClick={() => setDietFilter('Non-Veg')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                dietFilter === 'Non-Veg'
+                  ? 'bg-red-600 text-white shadow-sm'
+                  : 'bg-gray-100 text-red-800 hover:bg-red-50'
+              }`}
+            >
+              <span className="w-2 h-2 rounded-full bg-red-400"></span>
+              Non-Vegetarian
+            </button>
           </div>
 
           <div className="flex items-center gap-2">
@@ -228,7 +255,7 @@ export const BudgetBite: React.FC = () => {
             <span className="text-xs font-bold text-gray-400">Sort:</span>
             <button
               onClick={() => setSortBy(sortBy === 'low-to-high' ? 'high-to-low' : 'low-to-high')}
-              className="px-3 py-1 rounded-xl bg-gray-100 hover:bg-gray-200 text-xs font-bold text-brand-charcoal transition-all"
+              className="px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-xs font-bold text-brand-charcoal transition-all"
             >
               {sortBy === 'low-to-high' ? 'Price: Low to High' : 'Price: High to Low'}
             </button>
@@ -237,13 +264,13 @@ export const BudgetBite: React.FC = () => {
 
       </div>
 
-      {/* Suggested Affordable Meal Combinations */}
+      {/* Suggested Affordable Meal Combinations (Requirement 4) */}
       {affordableCombos.length > 0 && (
-        <div className="space-y-3">
+        <div className="space-y-4">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-brand-orange" />
-            <h2 className="text-lg font-bold text-brand-charcoal">
-              Affordable Combo Pairs Under ₹{selectedBudget}
+            <Sparkles className="w-5 h-5 text-brand-orange" />
+            <h2 className="text-xl font-extrabold text-brand-charcoal">
+              Affordable Meal Combinations Under ₹{selectedBudget}
             </h2>
           </div>
 
@@ -251,31 +278,38 @@ export const BudgetBite: React.FC = () => {
             {affordableCombos.map((combo, idx) => (
               <div 
                 key={idx}
-                className="bg-white rounded-2xl p-4 border border-amber-200 shadow-soft flex flex-col justify-between space-y-3"
+                className="bg-white rounded-2xl p-4 border border-amber-200 shadow-soft flex flex-col justify-between gap-3 hover:shadow-card transition-all"
               >
-                <div className="space-y-1">
-                  <div className="flex justify-between items-start">
-                    <span className="text-xs font-bold text-brand-charcoal">
-                      {combo.item1.name} + {combo.item2.name}
-                    </span>
-                    <span className="text-xs font-extrabold text-brand-orange bg-amber-50 px-2 py-0.5 rounded">
-                      ₹{combo.total}
-                    </span>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg">
+                    <span>Combo Pair #{idx + 1}</span>
+                    <span>Total ₹{combo.total} (Inc. Fees)</span>
                   </div>
-                  <p className="text-[11px] text-gray-500">
-                    Includes ₹{combo.item1.price} + ₹{combo.item2.price} + delivery & fees. Fully fits ₹{selectedBudget}!
-                  </p>
+
+                  <div className="space-y-1.5 text-xs">
+                    <div className="flex items-center gap-2">
+                      <img src={combo.item1.image} alt={combo.item1.name} className="w-10 h-10 rounded-lg object-cover" />
+                      <div>
+                        <p className="font-bold text-brand-charcoal line-clamp-1">{combo.item1.name}</p>
+                        <p className="text-gray-400 text-[10px]">₹{combo.item1.price}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <img src={combo.item2.image} alt={combo.item2.name} className="w-10 h-10 rounded-lg object-cover" />
+                      <div>
+                        <p className="font-bold text-brand-charcoal line-clamp-1">{combo.item2.name}</p>
+                        <p className="text-gray-400 text-[10px]">₹{combo.item2.price}</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 <button
-                  onClick={() => {
-                    addToCart(combo.item1, 1);
-                    addToCart(combo.item2, 1);
-                  }}
-                  className="w-full py-2 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
+                  onClick={() => handleAddComboToCart(combo.item1, combo.item2)}
+                  className="w-full py-2 bg-brand-orange hover:bg-brand-orange-hover text-white text-xs font-extrabold rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-sm"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  Add Both to Cart
+                  <span>Add Combo to Cart</span>
                 </button>
               </div>
             ))}
@@ -283,66 +317,51 @@ export const BudgetBite: React.FC = () => {
         </div>
       )}
 
-      {/* Meals Within Budget Results */}
+      {/* Food Listings Grid */}
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-extrabold text-brand-charcoal">
-              Meals Fitting Budget of ₹{selectedBudget} ({processedMeals.length})
-            </h2>
-            <p className="text-xs text-gray-500 mt-0.5">
-              {includeFeesInBudget 
-                ? 'Showing meals where item + delivery + fees <= budget' 
-                : 'Showing meals where food menu price <= budget'}
-            </p>
-          </div>
+          <h2 className="text-2xl font-extrabold text-brand-charcoal">
+            Meals Under ₹{selectedBudget} ({processedMeals.length})
+          </h2>
+          <span className="text-xs text-gray-500">
+            {dietFilter === 'Non-Veg' ? 'Showing Non-Vegetarian options' : dietFilter === 'Veg' ? 'Showing Vegetarian options' : 'Showing all options'}
+          </span>
         </div>
 
         {processedMeals.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {processedMeals.map(meal => (
-              <div key={meal.id} className="relative">
-                <FoodCard food={meal} />
-                {includeFeesInBudget && (
-                  <div className="mt-1 text-[11px] text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg font-medium flex items-center justify-between border border-emerald-100">
-                    <span>Est. Delivered Total:</span>
-                    <span className="font-bold">₹{getSimulatedTotal(meal)}</span>
-                  </div>
-                )}
-              </div>
+              <FoodCard key={meal.id} food={meal} />
             ))}
           </div>
         ) : (
-          <div className="bg-white rounded-3xl p-10 text-center border border-amber-100 shadow-soft space-y-3">
-            <Coins className="w-12 h-12 text-gray-300 mx-auto" />
-            <h3 className="text-base font-bold text-brand-charcoal">
-              No single meal fits ₹{selectedBudget} after delivery & fees.
+          <div className="bg-white rounded-3xl p-12 text-center border border-amber-200 shadow-soft space-y-3">
+            <div className="w-12 h-12 bg-amber-50 text-brand-orange rounded-2xl flex items-center justify-center mx-auto">
+              <UtensilsCrossed className="w-6 h-6" />
+            </div>
+            <h3 className="text-lg font-bold text-brand-charcoal">
+              No {dietFilter === 'Non-Veg' ? 'Non-Vegetarian' : dietFilter === 'Veg' ? 'Vegetarian' : ''} meals found strictly under ₹{selectedBudget} with fees.
             </h3>
-            <p className="text-xs text-gray-500 max-w-sm mx-auto">
-              Delivery is ₹{FEE_CONFIG.DELIVERY_FEE_BASE} and platform fee is ₹{FEE_CONFIG.PLATFORM_FEE}. Try increasing your budget to ₹100 or ₹150, or toggle "Item Price Only".
+            <p className="text-xs text-gray-500 max-w-md mx-auto">
+              Try switching to a higher budget preset (₹80, ₹100, ₹150) or toggling "Menu Price Only" to view items whose base price fits your budget!
             </p>
-            <button
-              onClick={() => handleSelectPreset(100)}
-              className="px-4 py-2 bg-brand-orange text-white text-xs font-bold rounded-xl"
-            >
-              Switch to ₹100 Budget
-            </button>
+            <div className="pt-2 flex justify-center gap-2">
+              <button
+                onClick={() => handleSelectPreset(150)}
+                className="px-4 py-2 bg-brand-orange text-white text-xs font-bold rounded-xl shadow-sm hover:bg-brand-orange-hover"
+              >
+                View Meals Under ₹150
+              </button>
+              <button
+                onClick={() => setDietFilter('All')}
+                className="px-4 py-2 bg-cream-100 text-brand-charcoal text-xs font-bold rounded-xl hover:bg-cream-200"
+              >
+                Show All Foods
+              </button>
+            </div>
           </div>
         )}
       </div>
-
-      {/* Deceptive Pricing Warning Box */}
-      {deceptiveItems.length > 0 && (
-        <div className="bg-amber-50 rounded-2xl p-5 border border-amber-200 space-y-2">
-          <div className="flex items-center gap-2 text-amber-800 font-bold text-xs">
-            <AlertCircle className="w-4 h-4 text-amber-600" />
-            <span>Avoid Misleading Prices Notice</span>
-          </div>
-          <p className="text-xs text-gray-600 leading-relaxed">
-            There are {deceptiveItems.length} dish(es) with an item price under ₹{selectedBudget} (such as {deceptiveItems[0].name} at ₹{deceptiveItems[0].price}), but after adding the ₹{FEE_CONFIG.DELIVERY_FEE_BASE} delivery fee and ₹{FEE_CONFIG.PLATFORM_FEE} platform fee, their delivered total is ₹{getSimulatedTotal(deceptiveItems[0])}. We have hidden them from the strict list above to protect your budget!
-          </p>
-        </div>
-      )}
 
     </div>
   );

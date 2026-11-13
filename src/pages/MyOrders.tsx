@@ -10,7 +10,8 @@ import {
   ArrowRight, 
   CheckCircle2, 
   XCircle,
-  Truck
+  Truck,
+  KeyRound
 } from 'lucide-react';
 import type { OrderStatus } from '../types';
 
@@ -18,17 +19,17 @@ export const MyOrders: React.FC = () => {
   const { user } = useAuth();
   const [statusFilter, setStatusFilter] = useState<'All' | 'Active' | 'Delivered' | 'Cancelled'>('All');
 
-  const allOrders = useMemo(() => StorageService.getOrders(), []);
+  const allOrders = useMemo(() => user ? StorageService.getOrders(user.id) : [], [user]);
 
-  // Filter for current customer or demo
+  // Filter for customer orders
   const customerOrders = useMemo(() => {
     return allOrders.filter(o => {
-      // In demo mode show all or match user
+      if (user && o.customerId !== user.id) return false;
       if (statusFilter === 'All') return true;
       if (statusFilter === 'Delivered') return o.orderStatus === 'Delivered';
-      if (statusFilter === 'Cancelled') return o.orderStatus === 'Cancelled';
+      if (statusFilter === 'Cancelled') return o.orderStatus === 'Cancelled' || o.orderStatus === 'Rejected';
       if (statusFilter === 'Active') {
-        return o.orderStatus !== 'Delivered' && o.orderStatus !== 'Cancelled';
+        return o.orderStatus !== 'Delivered' && o.orderStatus !== 'Cancelled' && o.orderStatus !== 'Rejected';
       }
       return true;
     });
@@ -39,7 +40,8 @@ export const MyOrders: React.FC = () => {
       case 'Delivered':
         return <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-lg text-xs font-bold">Delivered</span>;
       case 'Cancelled':
-        return <span className="px-2.5 py-1 bg-red-100 text-red-800 rounded-lg text-xs font-bold">Cancelled</span>;
+      case 'Rejected':
+        return <span className="px-2.5 py-1 bg-red-100 text-red-800 rounded-lg text-xs font-bold">{status}</span>;
       case 'Out for Delivery':
         return <span className="px-2.5 py-1 bg-amber-100 text-amber-900 rounded-lg text-xs font-bold animate-pulse">Out for Delivery</span>;
       case 'Preparing':
@@ -60,7 +62,7 @@ export const MyOrders: React.FC = () => {
             <span>My Orders & Order History</span>
           </h1>
           <p className="text-xs text-gray-500 mt-1">
-            Track active deliveries and review previous meal receipts.
+            Track active deliveries, find your delivery OTP, and review previous meal receipts.
           </p>
         </div>
 
@@ -92,11 +94,17 @@ export const MyOrders: React.FC = () => {
             >
               <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-gray-100 gap-2">
                 <div className="space-y-0.5">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="font-extrabold text-brand-charcoal text-base">
                       Order #{order.orderNumber}
                     </span>
                     {getStatusBadge(order.orderStatus)}
+                    {order.deliveryOtp && order.orderStatus !== 'Cancelled' && order.orderStatus !== 'Rejected' && (
+                      <span className="px-2.5 py-0.5 rounded-lg bg-brand-orange text-white font-mono font-black text-xs shadow-sm flex items-center gap-1" title="Share this OTP with rider">
+                        <KeyRound className="w-3 h-3" />
+                        <span>OTP: {order.deliveryOtp}</span>
+                      </span>
+                    )}
                   </div>
                   <p className="text-[11px] text-gray-400">
                     Placed on {new Date(order.createdAt).toLocaleDateString()} at {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

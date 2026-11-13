@@ -40,8 +40,8 @@ export const Checkout: React.FC = () => {
   });
 
   // Customer contact info
-  const [customerName, setCustomerName] = useState(user?.name || 'Rahul Sharma');
-  const [customerPhone, setCustomerPhone] = useState(user?.phone || '+91 98765 43210');
+  const [customerName, setCustomerName] = useState(user?.name || '');
+  const [customerPhone, setCustomerPhone] = useState(user?.phone || '');
 
   // New address fields
   const [showNewAddressForm, setShowNewAddressForm] = useState(savedAddresses.length === 0);
@@ -91,6 +91,13 @@ export const Checkout: React.FC = () => {
 
   const handlePlaceOrder = async () => {
     setValidationError('');
+
+    // 0. Verify authentication - Block guest ordering (Requirement 3)
+    if (!user) {
+      showToast('Please sign in or create an account to order food.', 'warning');
+      navigate('/login?redirect=/checkout');
+      return;
+    }
 
     // 1. Validate customer details
     if (!customerName.trim() || !customerPhone.trim()) {
@@ -151,7 +158,7 @@ export const Checkout: React.FC = () => {
       const newOrder: Order = {
         id: newOrderId,
         orderNumber: newOrderNumber,
-        customerId: user?.id || 'demo-user',
+        customerId: user.id,
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim(),
         deliveryAddress: targetAddress,

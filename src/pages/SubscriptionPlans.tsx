@@ -30,6 +30,15 @@ export const SubscriptionPlans: React.FC = () => {
 
   const addresses = StorageService.getAddresses();
 
+  const handleSelectPlan = (plan: SubscriptionPlan) => {
+    if (!user) {
+      showToast('Please sign in or create an account to order food.', 'warning');
+      navigate('/login?redirect=/subscriptions');
+      return;
+    }
+    setSelectedPlan(plan);
+  };
+
   const handleSubscribe = () => {
     if (!selectedPlan) return;
     const targetAddr = addresses.find(a => a.id === selectedAddressId) || addresses[0];
@@ -147,7 +156,7 @@ export const SubscriptionPlans: React.FC = () => {
               </div>
 
               <button
-                onClick={() => setSelectedPlan(plan)}
+                onClick={() => handleSelectPlan(plan)}
                 className="w-full py-3 bg-brand-green hover:bg-brand-green-hover text-white text-xs font-bold rounded-xl transition-all shadow-sm flex items-center justify-center gap-2"
               >
                 <span>Subscribe to Pass</span>

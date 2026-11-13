@@ -81,43 +81,93 @@ export function App() {
               {/* Page Content View */}
               <main className="flex-grow">
                 <Routes>
-                  {/* 1-4: Core Customer Experience */}
+                  {/* Public Browsing Routes */}
                   <Route path="/" element={<Home />} />
                   <Route path="/login" element={<Login />} />
                   <Route path="/signup" element={<Signup />} />
                   <Route path="/register" element={<Signup />} />
                   <Route path="/explore" element={<ExploreMeals />} />
-
-                  {/* 5-7: Core 3 Modules */}
                   <Route path="/homeplate" element={<HomePlate />} />
                   <Route path="/budgetbite" element={<BudgetBite />} />
                   <Route path="/savemymeal" element={<SaveMyMeal />} />
-
-                  {/* 8-11: Food Ordering & Swiggy Cart Flows */}
                   <Route path="/meal/:id" element={<MealDetails />} />
-                  <Route path="/cart" element={<Cart />} />
-                  <Route path="/checkout" element={<Checkout />} />
-                  <Route path="/order-confirmation/:orderId" element={<OrderConfirmation />} />
-
-                  {/* 12-15: Orders, Profile & Saved Addresses */}
-                  <Route path="/orders" element={<MyOrders />} />
-                  <Route path="/orders/:orderId" element={<OrderDetails />} />
-                  <Route path="/profile" element={<Profile />} />
-                  <Route path="/saved-addresses" element={<SavedAddresses />} />
-
-                  {/* 16-17: HomePlate Meal Subscriptions */}
                   <Route path="/subscriptions" element={<SubscriptionPlans />} />
-                  <Route path="/subscription-manage" element={<SubscriptionManagement />} />
 
-                  {/* 18-19: Seller Auth */}
+                  {/* Protected Customer Routes (Requirement 4) */}
+                  <Route
+                    path="/cart"
+                    element={
+                      <ProtectedRoute allowedRoles={['customer']}>
+                        <Cart />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/checkout"
+                    element={
+                      <ProtectedRoute allowedRoles={['customer']}>
+                        <Checkout />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/order-confirmation/:orderId"
+                    element={
+                      <ProtectedRoute allowedRoles={['customer']}>
+                        <OrderConfirmation />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/orders"
+                    element={
+                      <ProtectedRoute allowedRoles={['customer']}>
+                        <MyOrders />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/orders/:orderId"
+                    element={
+                      <ProtectedRoute allowedRoles={['customer', 'seller', 'admin']}>
+                        <OrderDetails />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/profile"
+                    element={
+                      <ProtectedRoute allowedRoles={['customer']}>
+                        <Profile />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/saved-addresses"
+                    element={
+                      <ProtectedRoute allowedRoles={['customer']}>
+                        <SavedAddresses />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/subscription-manage"
+                    element={
+                      <ProtectedRoute allowedRoles={['customer']}>
+                        <SubscriptionManagement />
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  {/* Seller Auth Routes */}
                   <Route path="/seller/register" element={<SellerRegister />} />
                   <Route path="/seller/login" element={<SellerLogin />} />
 
-                  {/* 20-25: Protected Seller Routes */}
+                  {/* Protected Seller Routes (Requirement 5) */}
                   <Route
                     path="/seller/dashboard"
                     element={
-                      <ProtectedRoute allowedRoles={['seller', 'admin']}>
+                      <ProtectedRoute allowedRoles={['seller']}>
                         <SellerDashboard />
                       </ProtectedRoute>
                     }
@@ -125,7 +175,7 @@ export function App() {
                   <Route
                     path="/seller/add-meal"
                     element={
-                      <ProtectedRoute allowedRoles={['seller', 'admin']}>
+                      <ProtectedRoute allowedRoles={['seller']}>
                         <AddMeal />
                       </ProtectedRoute>
                     }
@@ -133,7 +183,7 @@ export function App() {
                   <Route
                     path="/seller/edit-meal/:id"
                     element={
-                      <ProtectedRoute allowedRoles={['seller', 'admin']}>
+                      <ProtectedRoute allowedRoles={['seller']}>
                         <EditMeal />
                       </ProtectedRoute>
                     }
@@ -141,7 +191,7 @@ export function App() {
                   <Route
                     path="/seller/orders"
                     element={
-                      <ProtectedRoute allowedRoles={['seller', 'admin']}>
+                      <ProtectedRoute allowedRoles={['seller']}>
                         <SellerOrders />
                       </ProtectedRoute>
                     }
@@ -149,7 +199,7 @@ export function App() {
                   <Route
                     path="/seller/inventory"
                     element={
-                      <ProtectedRoute allowedRoles={['seller', 'admin']}>
+                      <ProtectedRoute allowedRoles={['seller']}>
                         <SellerInventory />
                       </ProtectedRoute>
                     }
@@ -157,16 +207,16 @@ export function App() {
                   <Route
                     path="/seller/profile"
                     element={
-                      <ProtectedRoute allowedRoles={['seller', 'admin']}>
+                      <ProtectedRoute allowedRoles={['seller']}>
                         <SellerProfile />
                       </ProtectedRoute>
                     }
                   />
 
-                  {/* 26: Admin Auth */}
+                  {/* Admin Auth Route */}
                   <Route path="/admin/login" element={<AdminLogin />} />
 
-                  {/* 27-32: Protected Administrator Routes */}
+                  {/* Protected Administrator Routes (Requirement 5) */}
                   <Route
                     path="/admin/dashboard"
                     element={
@@ -216,19 +266,18 @@ export function App() {
                     }
                   />
 
-                  {/* 33-35: Impact & Informational Pages */}
+                  {/* Informational Pages */}
                   <Route path="/impact" element={<FoodWasteImpact />} />
                   <Route path="/about" element={<AboutUs />} />
                   <Route path="/contact" element={<ContactUs />} />
 
-                  {/* 36: 404 Catch-All */}
+                  {/* 404 Catch-All */}
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </main>
 
-              {/* Main App Footer */}
+              {/* Global Footer */}
               <Footer />
-
             </div>
           </CartProvider>
         </AuthProvider>

@@ -19,7 +19,7 @@ export interface FoodItem {
   name: string;
   description: string;
   image: string;
-  category: FoodCategory;
+  category: FoodCategory | string;
   price: number;
   originalPrice?: number; // For SaveMyMeal
   discountPercentage?: number;
@@ -49,7 +49,8 @@ export type OrderStatus =
   | 'Ready for Pickup'
   | 'Out for Delivery'
   | 'Delivered'
-  | 'Cancelled';
+  | 'Cancelled'
+  | 'Rejected';
 
 export type PaymentMethod = 'COD';
 export type PaymentStatus = 'Pending' | 'Paid';
@@ -112,10 +113,38 @@ export interface Order {
   paymentMethod: PaymentMethod;
   paymentStatus: PaymentStatus;
   orderStatus: OrderStatus;
+  deliveryOtp?: string; // Cryptographically unique 6-digit OTP for order delivery verification
+  otpVerified?: boolean;
   statusTimestamps: Record<string, string>;
   cancellationReason?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface FoodSavingsItem {
+  id: string;
+  orderId: string;
+  orderNumber: string;
+  foodName: string;
+  sellerName: string;
+  image: string;
+  originalPrice: number;
+  purchasedPrice: number;
+  moneySaved: number;
+  quantity: number;
+  date: string;
+  status: string;
+  category?: string;
+}
+
+export interface FoodSavingsImpact {
+  totalItemsPurchased: number;
+  totalMealsRescued: number;
+  totalMoneySaved: number;
+  totalCompletedOrders: number;
+  estimatedWasteDivertedKg: number;
+  estimatedCo2ReducedKg: number;
+  savingsHistory: FoodSavingsItem[];
 }
 
 export interface SubscriptionPlan {
@@ -154,6 +183,7 @@ export interface UserProfile {
   name: string;
   email: string;
   phone: string;
+  password?: string;
   role: UserRole;
   avatarUrl?: string;
   sellerVerificationStatus?: 'Pending' | 'Verified' | 'Rejected';

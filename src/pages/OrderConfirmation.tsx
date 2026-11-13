@@ -14,7 +14,8 @@ import {
   Compass, 
   ShieldCheck,
   Gift,
-  Sparkles
+  Sparkles,
+  KeyRound
 } from 'lucide-react';
 
 export const OrderConfirmation: React.FC = () => {
@@ -40,7 +41,7 @@ export const OrderConfirmation: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       
-      {/* Success Notification Banner (hidden in print) */}
+      {/* Success Notification Banner */}
       <div className="bg-gradient-to-r from-emerald-600 to-brand-green rounded-3xl p-6 sm:p-8 text-white shadow-elevated flex flex-col sm:flex-row items-center justify-between gap-4 no-print animate-in fade-in">
         <div className="flex items-center gap-4 text-center sm:text-left">
           <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center flex-shrink-0">
@@ -73,6 +74,27 @@ export const OrderConfirmation: React.FC = () => {
           </Link>
         </div>
       </div>
+
+      {/* Unique Delivery OTP Card (Requirement 7) */}
+      {order.deliveryOtp && (
+        <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-brand-orange rounded-3xl p-6 text-white shadow-card flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/20 text-white text-[11px] font-bold">
+              <KeyRound className="w-3.5 h-3.5" />
+              <span>Unique Delivery Verification Code</span>
+            </div>
+            <h2 className="text-sm font-semibold opacity-95">
+              Your 6-Digit Delivery OTP (Give this to your delivery rider upon receiving your food):
+            </h2>
+          </div>
+
+          <div className="px-6 py-3 bg-white text-brand-charcoal rounded-2xl shadow-inner text-center self-stretch sm:self-auto">
+            <span className="text-3xl font-black font-mono tracking-widest text-brand-orange">
+              {order.deliveryOtp}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Digital Receipt Card (printable) */}
       <div className="print-receipt-card bg-white rounded-3xl p-6 sm:p-10 border border-amber-200/80 shadow-card space-y-6">
@@ -211,16 +233,6 @@ export const OrderConfirmation: React.FC = () => {
             </div>
           )}
 
-          {order.pointsEarned !== undefined && order.pointsEarned > 0 && (
-            <div className="flex justify-between text-amber-900 font-bold bg-amber-50 p-2 rounded-xl border border-amber-200">
-              <span className="flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                <span>5-Day Milestone Progress</span>
-              </span>
-              <span>+{order.pointsEarned} Pts Earned for Today!</span>
-            </div>
-          )}
-
           <div className="pt-3 border-t-2 border-dashed border-gray-300 flex justify-between items-baseline">
             <span className="text-sm sm:text-base font-extrabold text-brand-charcoal">
               FINAL PAYABLE AMOUNT (COD)
@@ -234,9 +246,9 @@ export const OrderConfirmation: React.FC = () => {
         {/* Payment & Order Status */}
         <div className="grid grid-cols-2 gap-4 text-xs pt-2">
           <div className="p-3 bg-amber-50 rounded-xl border border-amber-200">
-            <span className="text-[10px] text-gray-500 font-bold uppercase block">Payment Status</span>
+            <span className="text-[10px] text-gray-500 font-bold uppercase block">Payment Method</span>
             <span className="font-bold text-amber-800 text-sm mt-0.5 inline-block">
-              {order.paymentStatus} (Cash upon delivery)
+              COD ({order.paymentStatus})
             </span>
           </div>
 
@@ -255,7 +267,7 @@ export const OrderConfirmation: React.FC = () => {
 
       </div>
 
-      {/* Bottom Action Links (hidden in print) */}
+      {/* Bottom Action Links */}
       <div className="flex flex-wrap items-center justify-between gap-4 no-print pt-2">
         <Link
           to="/explore"

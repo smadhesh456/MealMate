@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from './AuthContext';
 import type { FoodItem, CartItem, BillBreakdown } from '../types';
 import { calculateBill } from '../utils/pricing';
 import { useToast } from './ToastContext';
@@ -52,6 +54,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   const { showToast } = useToast();
+  const { user, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
     try {
@@ -82,6 +86,13 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const addToCart = (food: FoodItem, quantity = 1): boolean => {
+    // 0. Check authentication - Block guest ordering (Requirement 3)
+    if (!isAuthenticated || !user) {
+      showToast('Please sign in or create an account to order food.', 'warning');
+      const returnUrl = encodeURIComponent(window.location.pathname + window.location.search);
+      navigate(`/login?redirect=${returnUrl}`);
+      return false;
+    }
     // 1. Check stock
     if (food.stockQuantity <= 0 || !food.isAvailable) {
       showToast(`Sorry, "${food.name}" is currently sold out!`, 'error');
@@ -129,6 +140,12 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateQuantity = (foodId: string, quantity: number) => {
+    if (!isAuthenticated || !user) {
+      showToast('Please sign in or create an account to order food.', 'warning');
+      const returnUrl = encodeURIComponent(window.location.pathname + window.location.search);
+      navigate(`/login?redirect=${returnUrl}`);
+      return;
+    }
     if (quantity <= 0) {
       removeFromCart(foodId);
       return;

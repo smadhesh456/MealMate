@@ -1,4 +1,12 @@
-# Logs
+# Project Reports & Screenshots (Documentation)
+*.docx
+*.pdf
+diagrams/
+screenshots/
+.env
+HOW TO RUN
+HOW TO RUN.md
+
 logs
 *.log
 npm-debug.log*

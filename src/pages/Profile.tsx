@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { StorageService } from '../services/storage';
@@ -16,14 +16,19 @@ import {
   Store,
   Gift,
   Sparkles,
-  Award,
+  TrendingDown,
+  Leaf,
+  Clock,
+  Search,
+  Filter,
+  CheckCircle2,
   Calendar,
-  CheckCircle2
+  AlertCircle
 } from 'lucide-react';
 import { RewardsService } from '../services/rewards';
 
 export const Profile: React.FC = () => {
-  const { user, role, updateProfile, switchRole } = useAuth();
+  const { user, role, updateProfile } = useAuth();
   const { showToast } = useToast();
   const [rewardStatus, setRewardStatus] = useState(() => RewardsService.getRewardStatus(user?.id));
 
@@ -32,14 +37,35 @@ export const Profile: React.FC = () => {
   const [phone, setPhone] = useState(user?.phone || '');
   const [isEditing, setIsEditing] = useState(false);
 
-  const customerOrders = StorageService.getOrders();
-  const customerSubs = StorageService.getSubscriptions();
-  const savedAddresses = StorageService.getAddresses();
+  // Search & filter state for Food Savings History (Requirement 6)
+  const [savingsSearch, setSavingsSearch] = useState('');
+  const [savingsCategoryFilter, setSavingsCategoryFilter] = useState('All');
+
+  // Load verified Food Savings Impact (only successfully DELIVERED orders count!)
+  const savingsImpact = useMemo(() => {
+    return StorageService.getFoodSavingsImpact(user?.id);
+  }, [user?.id]);
+
+  const filteredSavingsHistory = useMemo(() => {
+    return savingsImpact.savingsHistory.filter(item => {
+      if (savingsSearch.trim()) {
+        const q = savingsSearch.toLowerCase();
+        const matchesName = item.foodName.toLowerCase().includes(q);
+        const matchesSeller = item.sellerName.toLowerCase().includes(q);
+        const matchesOrder = item.orderNumber.toLowerCase().includes(q);
+        if (!matchesName && !matchesSeller && !matchesOrder) return false;
+      }
+      if (savingsCategoryFilter !== 'All' && item.category !== savingsCategoryFilter) {
+        return false;
+      }
+      return true;
+    });
+  }, [savingsImpact.savingsHistory, savingsSearch, savingsCategoryFilter]);
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !email.trim() || !phone.trim()) {
-      showToast('Please provide name, email, and phone number', 'warning');
+      showToast('Please provide name, email, and phone number.', 'warning');
       return;
     }
 
@@ -139,6 +165,178 @@ export const Profile: React.FC = () => {
         </form>
       )}
 
+      {/* ======================================================== */}
+      {/* SECTION 6: MY FOOD SAVINGS & IMPACT (Requirement 6) */}
+      {/* ======================================================== */}
+      <section className="bg-white rounded-3xl p-6 sm:p-8 border border-rose-100 shadow-card space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-gray-100 gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-rose-600 to-red-600 text-white flex items-center justify-center font-bold shadow-md">
+              <Leaf className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h2 className="text-xl font-black text-brand-charcoal flex items-center gap-2">
+                <span>My Food Savings & Impact</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800">
+                  Verified Delivered Orders Only
+                </span>
+              </h2>
+              <p className="text-xs text-gray-500">
+                Track how much food, money, and campus kitchen waste you have rescued through MealMate.
+              </p>
+            </div>
+          </div>
+
+          <Link
+            to="/savemymeal"
+            className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-800 text-xs font-extrabold rounded-xl border border-rose-200 transition-colors flex items-center gap-1.5 self-start sm:self-auto"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-rose-600" />
+            <span>Rescue More Meals</span>
+          </Link>
+        </div>
+
+        {/* Impact Summary Statistics Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="bg-rose-50/60 p-4 rounded-2xl border border-rose-100 text-center">
+            <span className="text-[10px] uppercase font-bold text-gray-500 block">Money Saved</span>
+            <span className="text-xl font-black text-rose-700 mt-1 block">
+              ₹{savingsImpact.totalMoneySaved}
+            </span>
+          </div>
+
+          <div className="bg-amber-50/60 p-4 rounded-2xl border border-amber-100 text-center">
+            <span className="text-[10px] uppercase font-bold text-gray-500 block">Meals Rescued</span>
+            <span className="text-xl font-black text-amber-700 mt-1 block">
+              {savingsImpact.totalMealsRescued}
+            </span>
+          </div>
+
+          <div className="bg-emerald-50/60 p-4 rounded-2xl border border-emerald-100 text-center">
+            <span className="text-[10px] uppercase font-bold text-gray-500 block">Waste Diverted</span>
+            <span className="text-xl font-black text-emerald-700 mt-1 block">
+              {savingsImpact.estimatedWasteDivertedKg} kg
+            </span>
+          </div>
+
+          <div className="bg-blue-50/60 p-4 rounded-2xl border border-blue-100 text-center">
+            <span className="text-[10px] uppercase font-bold text-gray-500 block">CO2 Saved</span>
+            <span className="text-xl font-black text-blue-700 mt-1 block">
+              {savingsImpact.estimatedCo2ReducedKg} kg
+            </span>
+          </div>
+
+          <div className="bg-purple-50/60 p-4 rounded-2xl border border-purple-100 text-center">
+            <span className="text-[10px] uppercase font-bold text-gray-500 block">Surplus Items</span>
+            <span className="text-xl font-black text-purple-700 mt-1 block">
+              {savingsImpact.totalItemsPurchased}
+            </span>
+          </div>
+
+          <div className="bg-gray-50 p-4 rounded-2xl border border-gray-200 text-center">
+            <span className="text-[10px] uppercase font-bold text-gray-500 block">Orders Completed</span>
+            <span className="text-xl font-black text-brand-charcoal mt-1 block">
+              {savingsImpact.totalCompletedOrders}
+            </span>
+          </div>
+        </div>
+
+        {/* Food History List & Controls (Requirement 6) */}
+        <div className="space-y-4 pt-2">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-brand-charcoal">
+              Rescued Food History ({filteredSavingsHistory.length})
+            </h3>
+
+            {/* Search Food History */}
+            <div className="relative w-full sm:w-64">
+              <input
+                type="text"
+                value={savingsSearch}
+                onChange={(e) => setSavingsSearch(e.target.value)}
+                placeholder="Search dish or kitchen..."
+                className="w-full pl-9 pr-3 py-1.5 text-xs bg-cream-50 border border-amber-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-brand-orange"
+              />
+              <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            </div>
+          </div>
+
+          {filteredSavingsHistory.length > 0 ? (
+            <div className="space-y-3">
+              {filteredSavingsHistory.map(item => (
+                <div
+                  key={item.id}
+                  className="p-4 bg-cream-50/50 rounded-2xl border border-amber-100/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-cream-50 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={item.image}
+                      alt={item.foodName}
+                      className="w-14 h-14 rounded-xl object-cover border border-amber-200/60 flex-shrink-0"
+                    />
+                    <div className="space-y-0.5">
+                      <h4 className="text-sm font-extrabold text-brand-charcoal">{item.foodName}</h4>
+                      <p className="text-xs text-gray-500 flex items-center gap-1.5">
+                        <Store className="w-3 h-3 text-gray-400" />
+                        <span>{item.sellerName}</span>
+                      </p>
+                      <div className="flex items-center gap-2 text-[11px] text-gray-400 pt-0.5">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="w-3 h-3" />
+                          {item.date}
+                        </span>
+                        <span>•</span>
+                        <span>Order ID: #{item.orderNumber}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between sm:justify-end gap-6 border-t sm:border-t-0 pt-2 sm:pt-0">
+                    <div className="text-right">
+                      <div className="text-xs text-gray-400 line-through">
+                        Original: ₹{item.originalPrice * item.quantity}
+                      </div>
+                      <div className="text-sm font-extrabold text-brand-charcoal">
+                        Purchased: ₹{item.purchasedPrice * item.quantity}
+                      </div>
+                      <div className="text-xs font-black text-emerald-600">
+                        Money Saved: ₹{item.moneySaved}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col items-end gap-1.5">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" />
+                        Delivered
+                      </span>
+                      <Link
+                        to={`/orders/${item.orderId}`}
+                        className="text-xs font-bold text-brand-orange hover:underline flex items-center gap-0.5"
+                      >
+                        <span>Details</span>
+                        <ArrowRight className="w-3 h-3" />
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="p-8 text-center bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+              <p className="text-xs font-bold text-gray-500">
+                {savingsSearch ? 'No rescued meals match your search.' : 'You haven\'t purchased any SaveMyMeal surplus food yet.'}
+              </p>
+              <Link
+                to="/savemymeal"
+                className="inline-block mt-2 text-xs font-bold text-brand-orange hover:underline"
+              >
+                Browse active SaveMyMeal offers now →
+              </Link>
+            </div>
+          )}
+        </div>
+      </section>
+
       {/* 5-Day Loyalty Streak & 100 Reward Points Hub */}
       <div className="bg-gradient-to-br from-amber-500/10 via-purple-50 to-orange-50 rounded-3xl p-6 sm:p-8 border-2 border-amber-300 shadow-card space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -158,7 +356,7 @@ export const Profile: React.FC = () => {
                 )}
               </div>
               <p className="text-xs text-gray-600 mt-0.5">
-                Earn 20 points per order day. Reach 100 points across 5 days to unlock 20% OFF on your 6th food order!
+                Earn 20 points per order day. Reach 100 points across 5 days to unlock 20% OFF on your next food subtotal!
               </p>
             </div>
           </div>
@@ -203,13 +401,13 @@ export const Profile: React.FC = () => {
                     {isCompleted ? '+20 Pts' : '20 Pts'}
                   </span>
                   <span className="block text-[9px] mt-0.5 truncate opacity-90">
-                    {dateStr ? dateStr : `Order on Day ${d}`}
+                    {dateStr ? dateStr : `Order Day ${d}`}
                   </span>
                 </div>
               );
             })}
 
-            {/* 6th Order 20% Offer Card */}
+            {/* 20% Offer Card */}
             <div
               className={`p-3 rounded-2xl border text-center transition-all ${
                 rewardStatus.canRedeem
@@ -218,7 +416,7 @@ export const Profile: React.FC = () => {
               }`}
             >
               <div className="flex items-center justify-between text-[11px] font-black">
-                <span>Order 6</span>
+                <span>Reward</span>
                 <span>🎁</span>
               </div>
               <span className="block text-sm font-black mt-1">
@@ -238,7 +436,7 @@ export const Profile: React.FC = () => {
               {rewardStatus.statusText}
             </p>
             <p className="text-[11px] text-gray-500">
-              Orders placed on the same calendar day count towards delivery, but unique days advance the 5-day streak.
+              Orders placed on unique calendar days count toward advancing the 5-day streak.
             </p>
           </div>
 
@@ -249,128 +447,6 @@ export const Profile: React.FC = () => {
             <span>Go to Cart</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </Link>
-        </div>
-
-        {/* Evaluator Demo Quick Simulation Tools */}
-        <div className="pt-2 border-t border-amber-200/60 flex flex-wrap items-center gap-2 text-xs">
-          <span className="font-bold text-amber-900 text-[11px] flex items-center gap-1">
-            <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-            Evaluator Fast Demo:
-          </span>
-          <button
-            type="button"
-            onClick={() => {
-              const res = RewardsService.simulateAddOrderDay(user?.id);
-              setRewardStatus(res);
-              showToast('Added simulated order day (+20 points)', 'success');
-            }}
-            className="px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-xl font-bold transition-colors"
-          >
-            + Add Day Order (+20 Pts)
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              const res = RewardsService.simulateSet100Points(user?.id);
-              setRewardStatus(res);
-              showToast('Unlocked 100 Points Milestone (5 Days Ready for 20% OFF)!', 'success');
-            }}
-            className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold transition-colors"
-          >
-            ⚡ Unlock 100 Pts (Ready for 20% OFF)
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              const res = RewardsService.resetRewards(user?.id);
-              setRewardStatus(res);
-              showToast('Reset rewards to 0 points', 'info');
-            }}
-            className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl font-semibold transition-colors"
-          >
-            Reset
-          </button>
-        </div>
-      </div>
-
-      {/* Quick Navigation Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Link
-          to="/orders"
-          className="bg-white rounded-2xl p-5 border border-amber-100 shadow-soft hover:shadow-card transition-all space-y-2 block"
-        >
-          <div className="w-10 h-10 rounded-xl bg-orange-100 text-brand-orange flex items-center justify-center">
-            <ShoppingBag className="w-5 h-5" />
-          </div>
-          <h3 className="font-bold text-sm text-brand-charcoal">My Orders</h3>
-          <p className="text-xs text-gray-500">
-            {customerOrders.length} recorded order{customerOrders.length !== 1 ? 's' : ''}
-          </p>
-        </Link>
-
-        <Link
-          to="/saved-addresses"
-          className="bg-white rounded-2xl p-5 border border-amber-100 shadow-soft hover:shadow-card transition-all space-y-2 block"
-        >
-          <div className="w-10 h-10 rounded-xl bg-emerald-100 text-brand-green flex items-center justify-center">
-            <MapPin className="w-5 h-5" />
-          </div>
-          <h3 className="font-bold text-sm text-brand-charcoal">Saved Addresses</h3>
-          <p className="text-xs text-gray-500">
-            {savedAddresses.length} campus location{savedAddresses.length !== 1 ? 's' : ''}
-          </p>
-        </Link>
-
-        <Link
-          to="/subscription-manage"
-          className="bg-white rounded-2xl p-5 border border-amber-100 shadow-soft hover:shadow-card transition-all space-y-2 block"
-        >
-          <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center">
-            <Layers className="w-5 h-5" />
-          </div>
-          <h3 className="font-bold text-sm text-brand-charcoal">Meal Subscriptions</h3>
-          <p className="text-xs text-gray-500">
-            {customerSubs.length} meal pass plan{customerSubs.length !== 1 ? 's' : ''}
-          </p>
-        </Link>
-      </div>
-
-      {/* Role Switching Evaluator Controls */}
-      <div className="bg-cream-100 rounded-3xl p-6 border border-amber-200/80 space-y-3">
-        <div className="flex items-center gap-2">
-          <ShieldCheck className="w-5 h-5 text-brand-green" />
-          <h3 className="text-sm font-bold text-brand-charcoal">
-            Evaluator Role Switcher (College Demo Mode)
-          </h3>
-        </div>
-        <p className="text-xs text-gray-600 leading-relaxed">
-          Quickly toggle between different user roles to test and grade role-protected features:
-        </p>
-        <div className="flex flex-wrap gap-2 pt-1">
-          <button
-            onClick={() => switchRole('customer')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-              role === 'customer' ? 'bg-brand-orange text-white shadow-sm' : 'bg-white text-gray-700 border border-gray-200'
-            }`}
-          >
-            Customer View (Rahul)
-          </button>
-          <button
-            onClick={() => switchRole('seller')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-              role === 'seller' ? 'bg-brand-green text-white shadow-sm' : 'bg-white text-gray-700 border border-gray-200'
-            }`}
-          >
-            Seller View (Annapoorna Devi)
-          </button>
-          <button
-            onClick={() => switchRole('admin')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-              role === 'admin' ? 'bg-purple-600 text-white shadow-sm' : 'bg-white text-gray-700 border border-gray-200'
-            }`}
-          >
-            Administrator View
-          </button>
         </div>
       </div>
 
