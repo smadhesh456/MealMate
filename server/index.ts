@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { initializeDatabase } from './db';
+import { initializeDatabase, pool } from './db';
 import authRoutes from './routes/auth';
 import foodRoutes from './routes/foods';
 import orderRoutes from './routes/orders';
@@ -37,14 +37,24 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Health Check
-app.get('/api/health', (_req, res) => {
-  res.json({
-    status: 'online',
-    platform: 'MealMate Smart Campus Food Delivery',
-    database: 'MySQL 8.0 (mealmate_db)',
-    tablesCount: 21,
-    timestamp: new Date().toISOString()
-  });
+app.get('/api/health', async (_req, res) => {
+  try {
+    const conn = await pool.getConnection();
+    await conn.ping();
+    conn.release();
+    return res.status(200).json({
+      status: 'success',
+      message: 'MealMate backend and MySQL database connected successfully',
+      database: process.env.DB_NAME || 'mealmate_db'
+    });
+  } catch (error: any) {
+    console.error('[Health Check] MySQL connection error:', error?.message);
+    return res.status(503).json({
+      status: 'error',
+      message: 'MealMate backend is running, but MySQL database connection failed',
+      database: process.env.DB_NAME || 'mealmate_db'
+    });
+  }
 });
 
 // Mount Routes
@@ -82,5 +92,22 @@ export const server = app.listen(PORT, async () => {
   console.log(`=======================================================`);
   await initializeDatabase();
 });
+
+// Graceful Shutdown
+const gracefulShutdown = async () => {
+  console.log('[Server] Gracefully shutting down...');
+  server.close(async () => {
+    try {
+      await pool.end();
+      console.log('[MySQL] Connection pool closed.');
+    } catch (e) {
+      console.error('[MySQL] Error closing pool:', e);
+    }
+    process.exit(0);
+  });
+};
+
+process.on('SIGINT', gracefulShutdown);
+process.on('SIGTERM', gracefulShutdown);
 
 export default app;

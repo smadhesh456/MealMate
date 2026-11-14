@@ -34,7 +34,7 @@ async function runTests() {
   await test('GET /api/health', async () => {
     const res = await fetch(`${baseUrl}/health`);
     const data = await res.json();
-    return res.status === 200 && data.status === 'online';
+    return res.status === 200 && data.status === 'success' && data.database === 'mealmate_db';
   });
 
   // 2. Categories
@@ -204,3 +204,4 @@ async function runTests() {
 }
 
 runTests();
+

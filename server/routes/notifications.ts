@@ -77,3 +77,4 @@ router.patch('/:id/read', authenticateToken, async (req: AuthRequest, res: Respo
 });
 
 export default router;
+

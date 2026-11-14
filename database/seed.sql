@@ -9,13 +9,12 @@ USE mealmate_db;
 SET FOREIGN_KEY_CHECKS = 0;
 
 -- 1. SEED USERS (bcrypt hash for passwords, e.g. madeshpassword123, sellerpassword123, adminpassword123)
--- Hash: $2b$10$wK1k6iB73U43y1X9gSg1ue.E7LzWn2H7j1mR1nZ0X9q8Y7P6L5O6a (example valid hash)
 INSERT INTO users (id, full_name, email, password_hash, phone, role, account_status, profile_image) VALUES
-('usr-admin-1', 'Admin Priya Sharma', 'admin@mealmate.com', '$2a$10$7EqJtq98hPqEX7fNZaFWoOhiMtiU0.VfQ8wP4d6t3bJbH8iM8z.2i', '+91 98765 11111', 'admin', 'active', 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=400&q=80'),
-('usr-seller-1', 'Lakshmi Narayanan', 'seller1@mealmate.com', '$2a$10$7EqJtq98hPqEX7fNZaFWoOhiMtiU0.VfQ8wP4d6t3bJbH8iM8z.2i', '+91 98765 22222', 'seller', 'active', 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=400&q=80'),
-('usr-seller-2', 'Ramesh Sundaram', 'seller2@mealmate.com', '$2a$10$7EqJtq98hPqEX7fNZaFWoOhiMtiU0.VfQ8wP4d6t3bJbH8iM8z.2i', '+91 98765 33333', 'seller', 'active', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80'),
-('usr-cust-1', 'Madesh Kumar', 'madesh@gmail.com', '$2a$10$7EqJtq98hPqEX7fNZaFWoOhiMtiU0.VfQ8wP4d6t3bJbH8iM8z.2i', '+91 98765 44444', 'customer', 'active', 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=400&q=80')
-ON DUPLICATE KEY UPDATE full_name=VALUES(full_name);
+('usr-admin-1', 'Admin Priya Sharma', 'admin@mealmate.com', '$2b$10$vB.oB2SXZ8beQxbQWxa5beNbQwW3zGhm0gq/JuWILi4WHJAL3unpC', '+91 98765 11111', 'admin', 'active', 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=400&q=80'),
+('usr-seller-1', 'Lakshmi Narayanan', 'seller1@mealmate.com', '$2b$10$QvbjKj2RBNf2Fy1aytbi4uU3BJMQbrQNgP0keCEUYu4xaXJDxwfm6', '+91 98765 22222', 'seller', 'active', 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=400&q=80'),
+('usr-seller-2', 'Ramesh Sundaram', 'seller2@mealmate.com', '$2b$10$QvbjKj2RBNf2Fy1aytbi4uU3BJMQbrQNgP0keCEUYu4xaXJDxwfm6', '+91 98765 33333', 'seller', 'active', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80'),
+('usr-cust-1', 'Madesh Kumar', 'madesh@gmail.com', '$2b$10$7omlXi9Z8ByUhzlNMaHxBOIPBwdxeF6kTd45fbCdebzNR3Ri8w2Vq', '+91 98765 44444', 'customer', 'active', 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=400&q=80')
+ON DUPLICATE KEY UPDATE full_name=VALUES(full_name), password_hash=VALUES(password_hash);
 
 -- 2. SEED USER ADDRESSES
 INSERT INTO user_addresses (id, user_id, address_title, full_address, city, postal_code, phone, is_default) VALUES
@@ -161,3 +160,4 @@ INSERT INTO notifications (id, user_id, title, message, notification_type, is_re
 ON DUPLICATE KEY UPDATE title=VALUES(title);
 
 SET FOREIGN_KEY_CHECKS = 1;
+

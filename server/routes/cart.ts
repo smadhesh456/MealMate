@@ -406,3 +406,4 @@ router.post('/loyalty', authenticateToken, async (req: AuthRequest, res: Respons
 });
 
 export default router;
+
